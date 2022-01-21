@@ -17,4 +17,4 @@ Usage of portBanner:
 **All \x0 need replaced by \x00 in nmap.jspn !!!!**
 
 
-![image](https://github.com/WHIJK/portBanner/blob/main/example.png)
+![image](./example.png)
