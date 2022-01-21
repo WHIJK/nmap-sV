@@ -14,4 +14,5 @@ Usage of portBanner:
   -t int
         Threads (default 100)
 ```
+nmap.jspn , all \x0 need replaced by \x00 !! 
 ![This is an image](./example.png)
