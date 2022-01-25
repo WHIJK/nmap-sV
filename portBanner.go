@@ -365,7 +365,12 @@ func printBanner(done chan bool) {
 
 		print_info := fmt.Sprintf("%-10s %s ", bannerStruct.Address, bannerStruct.Service)
 		if *info {
-			print_info = bufferJoin([]string{print_info, " ", bannerStruct.Banner.Vendorproductname, "-", bannerStruct.Banner.Version, "-", bannerStruct.Banner.Operatingsystem})
+			print_info = bufferJoin([]string{print_info, " (", bannerStruct.Banner.Vendorproductname})
+			if bannerStruct.Banner.Version != "" {
+				print_info = bufferJoin([]string{print_info, " ", bannerStruct.Banner.Version, ") "})
+			} else {
+				print_info = bufferJoin([]string{print_info, ") ", bannerStruct.Banner.Operatingsystem})
+			}
 		}
 		if *banner {
 			print_info = bufferJoin([]string{print_info, " ", bannerStruct.Banner.BannerPrint})
