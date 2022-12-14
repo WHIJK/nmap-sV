@@ -60,7 +60,7 @@ builds:
 archives:
   - id: "my-archive1"
     format: zip
-    files: [nmap.json]
+    files: [nmap.json,data.json]
     replacements:
       darwin: Darwin
       linux: Linux
