@@ -29,7 +29,7 @@ jobs:
         with:
           distribution: goreleaser
           version: latest
-          args: -f .github/.goreleaser.yml
+          args: -f .github/workflows/.goreleaser.yml
           workdir: .
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
