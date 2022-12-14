@@ -59,7 +59,7 @@ builds:
 
 archives:
   -
-    id: my-archive
+    id: "my-archive"
     format: zip
     files: [nmap.json]
     replacements:
