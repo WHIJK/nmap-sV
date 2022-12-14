@@ -59,9 +59,11 @@ builds:
 
 archives:
   - 
+    id: my-test
     format: zip
     files:
       - ./nmap.json
+  - id: my_two
     replacements:
       darwin: Darwin
       linux: Linux
