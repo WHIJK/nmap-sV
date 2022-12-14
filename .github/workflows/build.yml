@@ -1,0 +1,35 @@
+name: gobuild
+
+on:
+  push:
+    tags: # 创建tag时编译
+      - '*'
+
+permissions:
+  contents: write
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest # 测试系统
+    timeout-minutes: 60
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      -
+        name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.19
+      -
+        name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v3 # 使用Goreleaser
+        with:
+          distribution: goreleaser
+          version: latest
+          args: -f .github/.goreleaser.yml
+          workdir: .
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
