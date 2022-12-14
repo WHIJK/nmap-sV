@@ -61,10 +61,7 @@ archives:
   -
     id: my-archive
     format: zip
-    files:
-      - nmap.json
-archives:
-  - id: foo
+    files: [nmap.json]
     replacements:
       darwin: Darwin
       linux: Linux
