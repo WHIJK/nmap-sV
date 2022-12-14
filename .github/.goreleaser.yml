@@ -59,7 +59,6 @@ builds:
 
 archives:
   - 
-    id: my-archive
     format: zip
     files:
       - ./nmap.json
