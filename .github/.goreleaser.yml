@@ -58,7 +58,7 @@ builds:
 
 
 archives:
-  - id: "my-archive"
+  - id: "my-archive1"
     format: zip
     files: [nmap.json]
   - id: "my-rep"
