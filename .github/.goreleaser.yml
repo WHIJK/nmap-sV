@@ -58,17 +58,17 @@ builds:
 
 
 archives:
-  - replacements:
+  - 
+    id: my-archive
+    format: zip
+    files:
+      - ./nmap.json
+    replacements:
       darwin: Darwin
       linux: Linux
       windows: Windows
       386: i386
       amd64: x86_64
-archives:
-  -
-    id: my-archive
-    files:
-      - ./nmap.json
 checksum:
   name_template: 'checksums.txt'
 snapshot:
