@@ -3,15 +3,14 @@ package main
 import (
 	"bufio"
 	"bytes"
+	_ "embed"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"os"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -80,24 +79,31 @@ type BannerResult struct {
 	}
 }
 
+//go:embed nmap.json
+var nmapJson []byte
+
+//go:embed data.json
+var dataJson []byte
+
 // 加载可执行目录的namp 指纹文件,与数据文件
 func loadPrint(dataFile string) ([]NmapStruct, []DataStrut) {
 	nmapStructs := make([]NmapStruct, 0)
 	dataStruts := make([]DataStrut, 0)
-	ex, _ := os.Executable()   // 获取可执行文件信息
-	exPath := filepath.Dir(ex) // 文件路径
-	content, err := ioutil.ReadFile(exPath + "/" + dataFile)
-	// content, err := ioutil.ReadFile(dataFile)
-	if err != nil {
-		fmt.Println("load " + dataFile + " fail")
-		os.Exit(1)
-	}
-	jsonAsBytes := []byte(string(content))
+	/*	ex, _ := os.Executable()   // 获取可执行文件信息
+			exPath := filepath.Dir(ex) // 文件路径
+			content, err := ioutil.ReadFile(exPath + "/" + dataFile)
+			// content, err := ioutil.ReadFile(dataFile)
+			if err != nil {
+				fmt.Println("load " + dataFile + " fail")
+				os.Exit(1)
+			}
+		jsonAsBytes := []byte(string(content))
+	*/
 	switch dataFile {
 	case "nmap.json":
-		json.Unmarshal(jsonAsBytes, &nmapStructs)
+		json.Unmarshal(nmapJson, &nmapStructs)
 	case "data.json":
-		json.Unmarshal(jsonAsBytes, &dataStruts)
+		json.Unmarshal(dataJson, &dataStruts)
 	}
 	return nmapStructs, dataStruts
 }
@@ -113,7 +119,7 @@ func convResponse(s1 string) string {
 	return s2
 }
 
-//从json文件中获得的是字符串，需要将它转化为\x16进制格式
+// 从json文件中获得的是字符串，需要将它转化为\x16进制格式
 func hexToString(hexstr string) string { // hexstr example: \\x25\\x00\\x00\\x00\\x00,
 	// fmt.Printf("%#v\n", hexstr)
 	reg1 := regexp.MustCompile(`\\x([0-9a-zA-Z][0-9a-zA-Z])`) // 匹配\x+16进制字符
@@ -150,7 +156,7 @@ func GetBanner(address string, nmapStructs []NmapStruct, dataStruts []DataStrut)
 	Version := ""
 	i := 0 // 发送data顺序
 start:
-	conn, err := net.DialTimeout("tcp", address, time.Second*2) // 端口扫描
+	conn, err := net.DialTimeout("tcp", address, time.Second*time.Duration(*timeout)) // 端口扫描
 	if err == nil {
 		dataList := getNeedFromSendData(strings.Split(address, ":")[1], dataStruts)
 		defer conn.Close()
@@ -220,7 +226,7 @@ start:
 	}
 }
 
-//将分组匹配信息替换到对应的$1、$2上
+// 将分组匹配信息替换到对应的$1、$2上
 func MatchGroup(src string, replace_text []string) string {
 	reg := `\$\d`
 	if ok, _ := regexp.MatchString(reg, src); ok {
@@ -290,7 +296,7 @@ func matchIP(ip string) bool {
 // 任务创建
 func createJobs(s *bufio.Scanner) {
 	for s.Scan() {
-		if job, _, ok := matchIPPORT(s.Text()); ok {
+		if job, _, ok := matchIPPORT(fmt.Sprintf("%s", strings.ReplaceAll(s.Text(), " ", ""))); ok {
 			jobsChannel <- job
 		} else {
 			fmt.Println(job + " input error")
@@ -402,11 +408,12 @@ func worker(wg *sync.WaitGroup, nmapStructs []NmapStruct, dataStruts []DataStrut
 	wg.Done()
 }
 
-var threads = flag.Int("t", 100, "Threads")
+var threads = flag.Int("thread", 100, "Threads")
 var file = flag.String("o", "", "Output to  json file ")
 var banner = flag.Bool("b", false, "Show port banner")
 var sendData = flag.String("s", "All", "Send data,Example: rdp,http")
 var info = flag.Bool("i", false, "Show all info")
+var timeout = flag.Int("time", 5, "timeout for port")
 
 func main() {
 	flag.Parse()
