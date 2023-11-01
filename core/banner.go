@@ -30,7 +30,7 @@ func nmapSv(address string, nmapStructs []model.NmapStruct) (*model.BannerResult
 	var isMatch string                   // 匹配状态,open==开放并且匹配成功，not matched==开放但是未匹配成功
 	for _, nmapStruct := range nmapStructs {
 		if nmapStruct.Protocol != "UDP" { // 跳过UDP
-			if util.StrInSlice(port, nmapStruct.Ports) { // 判断是否处于常用端口
+			if util.StrInSlice(port, util.PortHandle(nmapStruct.Ports)) { // 判断是否处于常用端口
 				if bannerResult, isMatch = send(address, nmapStruct.Probestring, nmapStruct.Matches); isMatch == "open" || isMatch == "closed" {
 					return bannerResult, isMatch
 				}

@@ -94,7 +94,7 @@ func MatchIPPORT(ip string) (string, string, bool) {
 }
 
 // 处理端口范围
-func portHandle(ports []string) []string {
+func PortHandle(ports []string) []string {
 	var newPorts []string
 	for i, _ := range ports {
 		if strings.Contains(ports[i], "-") {
