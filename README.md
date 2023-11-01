@@ -1,7 +1,7 @@
 # portBanner
 
-Port fingerprint recognition
-
+Port fingerprint recognition  
+[only tcp  !!!!!]
 ```
 No input detected. Hint: cat ip:port.txt | file
 Usage of portBanner:
@@ -14,7 +14,9 @@ Usage of portBanner:
   -t int
         Threads (default 100)
 ```
-**All \x0 need replaced by \x00 in nmap.jspn !!!!**
+nmapfinger.py can convert nmap-service-probes to nmap.json
+
+**When add finger,  all \x0 need replaced by \x00 in nmap.json !!!!**
 
 
 ![image](./example.png)
