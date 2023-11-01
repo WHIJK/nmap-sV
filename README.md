@@ -1,22 +1,19 @@
-# portBanner
+# nmap-sV
 
 Port fingerprint recognition  
-[only tcp  !!!!!]
+**[only tcp  !!!!!]**
 ```
 No input detected. Hint: cat ip:port.txt | file
-Usage of portBanner:
+Usage of nmap-sV:
   -b    Show port banner
   -i    Show all info
   -o string
-        Output to  json file
-  -s string
-        Send data,Example: rdp,http (default "All")
-  -t int
+        Output to  json 
+  -thread int
         Threads (default 100)
+  -time int
+        timeout for port (default 3)
+
 ```
-nmapfinger.py can convert nmap-service-probes to nmap.json
-
-**When add finger,  all \x0 need replaced by \x00 in nmap.json !!!!**
-
 
 ![image](./example.png)
