@@ -1,6 +1,7 @@
 package core
 
 import (
+	"goPortBanner/model"
 	"regexp"
 	"strconv"
 	"strings"
@@ -31,4 +32,52 @@ func MatchFingerprint(banner, reg string) ([]string, bool) {
 		return match_arr[1:], true // 只获取分组
 	}
 	return []string{}, false
+}
+
+/*
+AddPattern
+@Description: 添加规则
+@param probename  在哪一个添加规则
+@param pattern
+@param name
+@param pattern_flag
+@param cpename
+@param devicetype
+@param hostname
+@param info
+@param operatingsystem
+@param vendorproductname
+@param version
+@return model.Matches
+*/
+func AddPattern(nmapStructs *[]model.NmapStruct, probename, pattern, name, pattern_flag, cpename, devicetype, hostname, info, operatingsystem, vendorproductname, version string) {
+	type Versioninfo struct {
+		Cpename           string `json:"cpename"`
+		Devicetype        string `json:"devicetype"`
+		Hostname          string `json:"hostname"`
+		Info              string `json:"info"`
+		Operatingsystem   string `json:"operatingsystem"`
+		Vendorproductname string `json:"vendorproductname"`
+		Version           string `json:"version"`
+	}
+	var Matches = model.Matches{
+		Pattern:     strings.ReplaceAll(pattern, `\x00`, `\0`),
+		Name:        name,
+		PatternFlag: pattern_flag,
+		Versioninfo: Versioninfo{
+			Cpename:           cpename,
+			Devicetype:        devicetype,
+			Hostname:          hostname,
+			Info:              info,
+			Operatingsystem:   operatingsystem,
+			Vendorproductname: vendorproductname,
+			Version:           version,
+		},
+	}
+	for i, nmapStruct := range *nmapStructs {
+		if nmapStruct.Probename == probename {
+			(*nmapStructs)[i].Matches = append(nmapStruct.Matches, Matches)
+			break
+		}
+	}
 }

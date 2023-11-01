@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/hex"
+	"goPortBanner/option"
 	"net"
 	"os"
 	"regexp"
@@ -18,7 +19,7 @@ import (
 */
 
 // 正则匹配,需要强行转换成UTF-8
-func convResponse(s1 string) string {
+func ConvResponse(s1 string) string {
 	b1 := []byte(s1)
 	var r1 []rune
 	for _, i := range b1 {
@@ -29,7 +30,7 @@ func convResponse(s1 string) string {
 }
 
 // 从json文件中获得的是字符串，需要将它转化为\x16进制格式
-func hexToString(hexstr string) string { // hexstr example: \\x25\\x00\\x00\\x00\\x00,
+func HexToString(hexstr string) string { // hexstr example: \\x25\\x00\\x00\\x00\\x00,
 	hexstr = strings.ReplaceAll(hexstr, "\\0", "\\x00")
 	reg1 := regexp.MustCompile(`\\x([0-9a-zA-Z][0-9a-zA-Z])`) // 匹配\x+16进制字符
 	result := reg1.FindAllStringSubmatch(hexstr, -1)          // 将获得例如： [\x25 =》25] [\x00 =》 00]
@@ -44,7 +45,7 @@ func hexToString(hexstr string) string { // hexstr example: \\x25\\x00\\x00\\x00
 }
 
 // 字符串连接
-func bufferJoin(s1 []string) string {
+func BufferJoin(s1 []string) string {
 	var buffer bytes.Buffer
 	for _, s := range s1 {
 		buffer.WriteString(s)
@@ -53,8 +54,8 @@ func bufferJoin(s1 []string) string {
 }
 
 // output
-func w2json(one string) {
-	file, err := os.OpenFile(*file, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0755)
+func W2json(one string) {
+	file, err := os.OpenFile(*option.File, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0755)
 	if err != nil {
 		panic(err)
 	}
@@ -73,7 +74,7 @@ func matchIP(ip string) bool {
 }
 
 // 验证输入是否合法
-func matchIPPORT(ip string) (string, string, bool) {
+func MatchIPPORT(ip string) (string, string, bool) {
 	port := ""
 	if !strings.Contains(ip, ":") {
 		if matchIP(ip) {
@@ -110,8 +111,14 @@ func portHandle(ports []string) []string {
 	return newPorts
 }
 
-// 二分法查找端口
-func in(target string, str_array []string) bool {
+/*
+StrInSlice
+@Description:  判断target是否在slice中
+@param target
+@param str_array
+@return bool
+*/
+func StrInSlice(target string, str_array []string) bool {
 	sort.Strings(str_array)
 	index := sort.SearchStrings(str_array, target)
 	//index的取值：[0,len(str_array)]
@@ -119,31 +126,4 @@ func in(target string, str_array []string) bool {
 		return true
 	}
 	return false
-}
-
-// 获取发送的数据,由于发送数据时是按顺序的，将符合条件的端口放在第一个数据发送
-func getNeedFromSendData(target_port string, dataStruts []DataStrut) []string {
-	dataList := []string{} // 初始化
-	if strings.ToLower(*sendData) == "all" {
-		for i, _ := range dataStruts {
-			newPorts := portHandle(dataStruts[i].Port)
-			if in(target_port, newPorts) {
-				dataList = append([]string{dataStruts[i].Data}, dataList...) // 找到端口匹配，放在数据切片的头部
-			} else {
-				dataList = append(dataList, dataStruts[i].Data)
-			}
-		}
-	} else {
-		for i, _ := range dataStruts {
-			if strings.Contains(*sendData, dataStruts[i].Name) {
-				newPorts := portHandle(dataStruts[i].Port)
-				if in(target_port, newPorts) {
-					dataList = append([]string{dataStruts[i].Data}, dataList...) // 找到端口匹配，放在数据切片的头部
-				} else {
-					dataList = append(dataList, dataStruts[i].Data)
-				}
-			}
-		}
-	}
-	return dataList
 }
