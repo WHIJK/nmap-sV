@@ -1,3 +1,3 @@
-module goPortBanner
+module github.com/WHIJK/nmap-sV
 
-go 1.17
+go 1.21.3
