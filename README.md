@@ -25,5 +25,5 @@ Usage of nmap-sV:
 ```
 
 ![image](img/example.png)  
-从naabu获取输入
+从naabu获取输入  
 ![img.png](img/img.png)
