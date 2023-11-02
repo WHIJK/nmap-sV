@@ -122,7 +122,7 @@ AddPattern
 @param version
 @return model.Matches
 */
-func (sv *NmapSdk) AddPattern(nmapStructs *[]model.NmapStruct, probename, pattern, name, pattern_flag, cpename, devicetype, hostname, info, operatingsystem, vendorproductname, version string) {
+func (sv *NmapSdk) AddPattern(probestring string, ports []string, nmapStructs *[]model.NmapStruct, probename, pattern, name, pattern_flag, cpename, devicetype, hostname, info, operatingsystem, vendorproductname, version string) {
 	type Versioninfo struct {
 		Cpename           string `json:"cpename"`
 		Devicetype        string `json:"devicetype"`
@@ -149,6 +149,17 @@ func (sv *NmapSdk) AddPattern(nmapStructs *[]model.NmapStruct, probename, patter
 	for i, nmapStruct := range *nmapStructs {
 		if nmapStruct.Probename == probename {
 			(*nmapStructs)[i].Matches = append(nmapStruct.Matches, Matches)
+			// 如果probestring，则会添加探针，并且匹配probename相同的matches
+			if probestring != "" {
+				var pro = &model.NmapStruct{
+					Protocol:    "TCP",
+					Probename:   probename,
+					Ports:       ports,
+					Probestring: probestring,
+					Matches:     (*nmapStructs)[i].Matches,
+				}
+				*nmapStructs = append(*nmapStructs, *pro)
+			}
 			break
 		}
 	}

@@ -6,7 +6,8 @@
 
 # nmap-sV
 使用nmap指纹，利用go实现指纹探测
-**[仅 tcp  !!!!!]**
+**[仅 tcp  !!!!!]**  
+【**未匹配到可能会很慢**】
 ```
 No input detected. Hint: cat ip:port.txt | file
 Usage of nmap-sV:
