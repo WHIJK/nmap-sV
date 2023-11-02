@@ -9,7 +9,6 @@ builds:
       - -s -w -extldflags "-static"
     flags:
       - -trimpath
-    static:
     env:
       - CGO_ENABLED=1
     goos:
