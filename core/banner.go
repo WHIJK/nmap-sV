@@ -2,8 +2,8 @@ package core
 
 import (
 	"fmt"
-	"goPortBanner/core/model"
-	"goPortBanner/core/util"
+	"github.com/WHIJK/nmap-sV/core/model"
+	"github.com/WHIJK/nmap-sV/core/util"
 	"io"
 	"net"
 	"strings"

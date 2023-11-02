@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/hex"
-	"goPortBanner/option"
+	"github.com/WHIJK/nmap-sV/option"
 	"net"
 	"os"
 	"regexp"

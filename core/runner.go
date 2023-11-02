@@ -2,8 +2,8 @@ package core
 
 import (
 	"encoding/json"
-	"goPortBanner/core/embed"
-	"goPortBanner/option"
+	"github.com/WHIJK/nmap-sV/core/embed"
+	"github.com/WHIJK/nmap-sV/option"
 )
 
 /*

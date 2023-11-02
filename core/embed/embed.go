@@ -3,7 +3,7 @@ package embed
 import (
 	_ "embed"
 	"encoding/json"
-	"goPortBanner/core/model"
+	"github.com/WHIJK/nmap-sV/core/model"
 )
 
 /*
