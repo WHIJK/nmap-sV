@@ -9,8 +9,6 @@ builds:
       - -trimpath
     ldflags:
       - -s -w -extldflags "-static"
-    # env:
-    # - CGO_ENABLED=1 # necessary only with winpcap
     goos:
       - windows
     goarch:
