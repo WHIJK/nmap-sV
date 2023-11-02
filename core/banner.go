@@ -30,17 +30,16 @@ nmapSv
 */
 func (sv *NmapSdk) nmapSv(address string, nmapStructs []model.NmapStruct) {
 	port := strings.Split(address, ":")[1]
-	var tempStruct []model.NmapStruct // 未匹配到端口，后续扫描
-	for _, nmapStruct := range nmapStructs {
-		if nmapStruct.Protocol != "UDP" { // 跳过UDP
-			if util.StrInSlice(port, util.PortHandle(nmapStruct.Ports)) { // 判断是否处于常用端口
-				if sv.BannerResult, sv.IsMatch = send(address, nmapStruct.Probestring, nmapStruct.Matches); sv.IsMatch == "open" || sv.IsMatch == "closed" {
+	total := len(nmapStructs)
+	for i := 0; i < len(nmapStructs); i++ {
+		if nmapStructs[i].Protocol != "UDP" { // 跳过UDP
+			if util.StrInSlice(port, util.PortHandle(nmapStructs[i].Ports)) || i > total { // 判断是否处于常用端口
+				if sv.BannerResult, sv.IsMatch = send(address, nmapStructs[i].Probestring, nmapStructs[i].Matches); sv.IsMatch == "open" || sv.IsMatch == "closed" {
 					break
 				}
 			} else {
-				tempStruct = append(tempStruct, nmapStruct)
+				nmapStructs = append(nmapStructs, nmapStructs[i])
 			}
-			nmapStructs = append(nmapStructs[:len(nmapStructs)-len(tempStruct)], tempStruct...)
 		}
 	}
 }
