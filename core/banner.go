@@ -26,7 +26,7 @@ nmapSv
 func nmapSv(address string, nmapStructs []model.NmapStruct) (*model.BannerResult, string) {
 	port := strings.Split(address, ":")[1]
 	var bannerResult *model.BannerResult // banner结果
-	var lastStruct []model.NmapStruct    // 未匹配到端口，后续扫描
+	var tempStruct []model.NmapStruct    // 未匹配到端口，后续扫描
 	var isMatch string                   // 匹配状态,open==开放并且匹配成功，not matched==开放但是未匹配成功
 	for _, nmapStruct := range nmapStructs {
 		if nmapStruct.Protocol != "UDP" { // 跳过UDP
@@ -35,19 +35,21 @@ func nmapSv(address string, nmapStructs []model.NmapStruct) (*model.BannerResult
 					return bannerResult, isMatch
 				}
 			} else {
-				lastStruct = append(lastStruct, nmapStruct)
+				tempStruct = append(tempStruct, nmapStruct)
 			}
+			nmapStructs = append(nmapStructs[:len(nmapStructs)-len(tempStruct)], tempStruct...)
 		}
 	}
 
 	// 发送剩余指纹扫描
-	if isMatch == "not matched" || isMatch == "" {
-		for _, nmapStruct := range lastStruct {
-			if bannerResult, isMatch = send(address, nmapStruct.Probestring, nmapStruct.Matches); isMatch == "open" || isMatch == "closed" {
-				return bannerResult, isMatch
-			}
-		}
-	}
+	//if isMatch == "not matched" || isMatch == "" {
+	//	for _, nmapStruct := range lastStruct {
+	//		if bannerResult, isMatch = send(address, nmapStruct.Probestring, nmapStruct.Matches); isMatch == "open" || isMatch == "closed" {
+	//			return bannerResult, isMatch
+	//		}
+	//	}
+	//}
+
 	return bannerResult, isMatch
 }
 
