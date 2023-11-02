@@ -54,9 +54,6 @@ send
 @return string
 */
 func send(address, probes string, matches []model.Matches, timeout int) (*model.BannerResult, string) {
-	// 替换，否则会出现规则匹配问题
-	probes = strings.ReplaceAll(probes, "\\r\\n", "\r\n")
-
 	var buf = make([]byte, 2048)
 	var bannerPrint string // 记录端口的banner信息
 	var bannerResult = &model.BannerResult{
@@ -75,7 +72,11 @@ func send(address, probes string, matches []model.Matches, timeout int) (*model.
 	if err == nil {
 		defer conn.Close()
 		conn.SetDeadline(time.Now().Add(time.Second * time.Duration(timeout)))
-		io.WriteString(conn, util.HexToString(probes))
+		if probes != "" {
+			// 替换，否则会出现规则匹配问题
+			probes = strings.ReplaceAll(probes, "\\r\\n", "\r\n")
+			io.WriteString(conn, util.HexToString(probes))
+		}
 		length, err_read := conn.Read(buf)
 		if err_read == nil && length > 0 {
 			bannerPrint = string(buf[:length]) // 获得指纹信息
