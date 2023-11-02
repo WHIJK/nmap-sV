@@ -18,23 +18,23 @@ import (
 type NmapSdk struct {
 	BannerResult *model.BannerResult
 	IsMatch      string // 匹配状态,open==开放并且匹配成功，not matched==开放但是未匹配成功
-	timeout      int
+	Timeout      int
 }
 
 /*
-nmapSv
+NmapSv
 @Description:  处理优先级，并进行扫描
 @param address
 @param nmapStructs
 @return *model.BannerResult
 */
-func (sv *NmapSdk) nmapSv(address string, nmapStructs []model.NmapStruct) {
+func (sv *NmapSdk) NmapSv(address string, nmapStructs []model.NmapStruct) {
 	port := strings.Split(address, ":")[1]
 	total := len(nmapStructs)
 	for i := 0; i < len(nmapStructs); i++ {
 		if nmapStructs[i].Protocol != "UDP" { // 跳过UDP
 			if util.StrInSlice(port, util.PortHandle(nmapStructs[i].Ports)) || i >= total { // 判断是否处于常用端口
-				if sv.BannerResult, sv.IsMatch = send(address, nmapStructs[i].Probestring, nmapStructs[i].Matches, sv.timeout); sv.IsMatch == "open" || sv.IsMatch == "closed" {
+				if sv.BannerResult, sv.IsMatch = send(address, nmapStructs[i].Probestring, nmapStructs[i].Matches, sv.Timeout); sv.IsMatch == "open" || sv.IsMatch == "closed" {
 					break
 				}
 			} else {
@@ -107,7 +107,7 @@ func send(address, probes string, matches []model.Matches, timeout int) (*model.
 }
 
 /*
-addPattern
+AddPattern
 @Description: 添加规则
 @param probename  在指定的probename添加规则
 @param pattern
@@ -122,7 +122,7 @@ addPattern
 @param version
 @return model.Matches
 */
-func (sv *NmapSdk) addPattern(nmapStructs *[]model.NmapStruct, probename, pattern, name, pattern_flag, cpename, devicetype, hostname, info, operatingsystem, vendorproductname, version string) {
+func (sv *NmapSdk) AddPattern(nmapStructs *[]model.NmapStruct, probename, pattern, name, pattern_flag, cpename, devicetype, hostname, info, operatingsystem, vendorproductname, version string) {
 	type Versioninfo struct {
 		Cpename           string `json:"cpename"`
 		Devicetype        string `json:"devicetype"`
