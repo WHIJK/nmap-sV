@@ -2,9 +2,9 @@ package core
 
 import (
 	"fmt"
-	"goPortBanner/model"
+	"goPortBanner/core/model"
+	"goPortBanner/core/util"
 	"goPortBanner/option"
-	"goPortBanner/util"
 	"io"
 	"net"
 	"strings"
@@ -16,6 +16,11 @@ import (
 @Date: 2023/11/1 17:37
 */
 
+type NmapSdk struct {
+	BannerResult *model.BannerResult
+	IsMatch      string // 匹配状态,open==开放并且匹配成功，not matched==开放但是未匹配成功
+}
+
 /*
 nmapSv
 @Description:  处理优先级，并进行扫描
@@ -23,16 +28,14 @@ nmapSv
 @param nmapStructs
 @return *model.BannerResult
 */
-func nmapSv(address string, nmapStructs []model.NmapStruct) (*model.BannerResult, string) {
+func (sv *NmapSdk) nmapSv(address string, nmapStructs []model.NmapStruct) {
 	port := strings.Split(address, ":")[1]
-	var bannerResult *model.BannerResult // banner结果
-	var tempStruct []model.NmapStruct    // 未匹配到端口，后续扫描
-	var isMatch string                   // 匹配状态,open==开放并且匹配成功，not matched==开放但是未匹配成功
+	var tempStruct []model.NmapStruct // 未匹配到端口，后续扫描
 	for _, nmapStruct := range nmapStructs {
 		if nmapStruct.Protocol != "UDP" { // 跳过UDP
 			if util.StrInSlice(port, util.PortHandle(nmapStruct.Ports)) { // 判断是否处于常用端口
-				if bannerResult, isMatch = send(address, nmapStruct.Probestring, nmapStruct.Matches); isMatch == "open" || isMatch == "closed" {
-					return bannerResult, isMatch
+				if sv.BannerResult, sv.IsMatch = send(address, nmapStruct.Probestring, nmapStruct.Matches); sv.IsMatch == "open" || sv.IsMatch == "closed" {
+					break
 				}
 			} else {
 				tempStruct = append(tempStruct, nmapStruct)
@@ -40,17 +43,6 @@ func nmapSv(address string, nmapStructs []model.NmapStruct) (*model.BannerResult
 			nmapStructs = append(nmapStructs[:len(nmapStructs)-len(tempStruct)], tempStruct...)
 		}
 	}
-
-	// 发送剩余指纹扫描
-	//if isMatch == "not matched" || isMatch == "" {
-	//	for _, nmapStruct := range lastStruct {
-	//		if bannerResult, isMatch = send(address, nmapStruct.Probestring, nmapStruct.Matches); isMatch == "open" || isMatch == "closed" {
-	//			return bannerResult, isMatch
-	//		}
-	//	}
-	//}
-
-	return bannerResult, isMatch
 }
 
 /*
@@ -113,4 +105,52 @@ func send(address, probes string, matches []model.Matches) (*model.BannerResult,
 		return bannerResult, "closed"
 	}
 	return bannerResult, "not matched"
+}
+
+/*
+addPattern
+@Description: 添加规则
+@param probename  在指定的probename添加规则
+@param pattern
+@param name
+@param pattern_flag
+@param cpename
+@param devicetype
+@param hostname
+@param info
+@param operatingsystem
+@param vendorproductname
+@param version
+@return model.Matches
+*/
+func (sv *NmapSdk) addPattern(nmapStructs *[]model.NmapStruct, probename, pattern, name, pattern_flag, cpename, devicetype, hostname, info, operatingsystem, vendorproductname, version string) {
+	type Versioninfo struct {
+		Cpename           string `json:"cpename"`
+		Devicetype        string `json:"devicetype"`
+		Hostname          string `json:"hostname"`
+		Info              string `json:"info"`
+		Operatingsystem   string `json:"operatingsystem"`
+		Vendorproductname string `json:"vendorproductname"`
+		Version           string `json:"version"`
+	}
+	var Matches = model.Matches{
+		Pattern:     strings.ReplaceAll(pattern, `\x00`, `\0`),
+		Name:        name,
+		PatternFlag: pattern_flag,
+		Versioninfo: Versioninfo{
+			Cpename:           cpename,
+			Devicetype:        devicetype,
+			Hostname:          hostname,
+			Info:              info,
+			Operatingsystem:   operatingsystem,
+			Vendorproductname: vendorproductname,
+			Version:           version,
+		},
+	}
+	for i, nmapStruct := range *nmapStructs {
+		if nmapStruct.Probename == probename {
+			(*nmapStructs)[i].Matches = append(nmapStruct.Matches, Matches)
+			break
+		}
+	}
 }

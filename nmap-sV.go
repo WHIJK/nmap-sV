@@ -7,10 +7,9 @@ import (
 	"flag"
 	"fmt"
 	"goPortBanner/core"
-	"goPortBanner/embed"
-	"goPortBanner/model"
+	"goPortBanner/core/model"
+	"goPortBanner/core/util"
 	"goPortBanner/option"
-	"goPortBanner/util"
 	"os"
 	"strings"
 	"sync"
@@ -22,8 +21,6 @@ var jobsChannel = make(chan string, 100)
 var bannerChannel = make(chan string, 100)
 var portList = make([]string, 0) // 端口符合，优先发送
 var bannerStruct model.BannerResult
-
-var nmapStructs = embed.Load() // 加载文件
 
 // 任务创建
 func createJobs(s *bufio.Scanner) {
@@ -67,28 +64,22 @@ func createPool(threads int) {
 	var wg sync.WaitGroup
 	for i := 0; i < threads; i++ {
 		wg.Add(1)
-		go worker(&wg, nmapStructs)
+		go worker(&wg)
 	}
 	wg.Wait()
 	close(bannerChannel)
 }
 
 // 执行任务
-func worker(wg *sync.WaitGroup, nmapStructs []model.NmapStruct) {
+func worker(wg *sync.WaitGroup) {
 	for v := range jobsChannel {
-		core.Run(v, nmapStructs, bannerChannel)
+		core.Run(v, bannerChannel)
 	}
 	wg.Done()
 }
 
 func init() {
 	flag.Parse()
-	core.AddPattern(&nmapStructs, "TerminalServerCookie", "^\\x03\\x00\\x00\\x13\\x0e\\xd0\\x00\\x00\\x124\\x00\\x02.*\\x02\\x00\\x00\\x00",
-		"ms-wbt-server", "", "o:microsoft:windows", "", "", "", "Windows", "Microsoft Terminal Services",
-		"Windows 7 or Server 2008 R2")
-	core.AddPattern(&nmapStructs, "GetRequest", "^HTTP/1\\.[1\\|0]",
-		"http", "", "", "", "", "", "", "",
-		"")
 }
 
 func main() {

@@ -3,7 +3,7 @@ package embed
 import (
 	_ "embed"
 	"encoding/json"
-	"goPortBanner/model"
+	"goPortBanner/core/model"
 )
 
 /*
