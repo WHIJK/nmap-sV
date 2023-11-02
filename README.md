@@ -2,6 +2,7 @@
 - https://github.com/boy-hack/nmap-parser  
 - https://github.com/lcvvvv/gonmap
 - https://github.com/nmap/nmap
+- https://github.com/projectdiscovery/naabu
 
 # nmap-sV
 使用nmap指纹，利用go实现指纹探测
