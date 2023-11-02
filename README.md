@@ -1,7 +1,11 @@
-# nmap-sV
+# REF
+- https://github.com/boy-hack/nmap-parser  
+- https://github.com/lcvvvv/gonmap
+- https://github.com/nmap/nmap
 
-Port fingerprint recognition  
-**[only tcp  !!!!!]**
+# nmap-sV
+使用nmap指纹，利用go实现指纹探测
+**[仅 tcp  !!!!!]**
 ```
 No input detected. Hint: cat ip:port.txt | file
 Usage of nmap-sV:
@@ -12,8 +16,10 @@ Usage of nmap-sV:
   -thread int
         Threads (default 100)
   -time int
-        timeout for port (default 3)
+        timeout for port (default 5)
 
 ```
 
-![image](./example.png)
+![image](img/example.png)  
+从naabu获取输入
+![img.png](img/img.png)

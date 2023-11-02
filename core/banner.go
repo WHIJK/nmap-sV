@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"goPortBanner/core/model"
 	"goPortBanner/core/util"
-	"goPortBanner/option"
 	"io"
 	"net"
 	"strings"
@@ -19,6 +18,7 @@ import (
 type NmapSdk struct {
 	BannerResult *model.BannerResult
 	IsMatch      string // 匹配状态,open==开放并且匹配成功，not matched==开放但是未匹配成功
+	timeout      int
 }
 
 /*
@@ -33,8 +33,8 @@ func (sv *NmapSdk) nmapSv(address string, nmapStructs []model.NmapStruct) {
 	total := len(nmapStructs)
 	for i := 0; i < len(nmapStructs); i++ {
 		if nmapStructs[i].Protocol != "UDP" { // 跳过UDP
-			if util.StrInSlice(port, util.PortHandle(nmapStructs[i].Ports)) || i > total { // 判断是否处于常用端口
-				if sv.BannerResult, sv.IsMatch = send(address, nmapStructs[i].Probestring, nmapStructs[i].Matches); sv.IsMatch == "open" || sv.IsMatch == "closed" {
+			if util.StrInSlice(port, util.PortHandle(nmapStructs[i].Ports)) || i >= total { // 判断是否处于常用端口
+				if sv.BannerResult, sv.IsMatch = send(address, nmapStructs[i].Probestring, nmapStructs[i].Matches, sv.timeout); sv.IsMatch == "open" || sv.IsMatch == "closed" {
 					break
 				}
 			} else {
@@ -53,7 +53,7 @@ send
 @return *model.BannerResult
 @return string
 */
-func send(address, probes string, matches []model.Matches) (*model.BannerResult, string) {
+func send(address, probes string, matches []model.Matches, timeout int) (*model.BannerResult, string) {
 	// 替换，否则会出现规则匹配问题
 	probes = strings.ReplaceAll(probes, "\\r\\n", "\r\n")
 
@@ -71,10 +71,10 @@ func send(address, probes string, matches []model.Matches) (*model.BannerResult,
 	} // banner结果存储
 	var matchFlag bool // 是否成功匹配指纹标志位
 
-	conn, err := net.DialTimeout("tcp", address, time.Second*time.Duration(*option.Timeout))
+	conn, err := net.DialTimeout("tcp", address, time.Second*time.Duration(timeout))
 	if err == nil {
 		defer conn.Close()
-		conn.SetDeadline(time.Now().Add(time.Second * time.Duration(*option.Timeout)))
+		conn.SetDeadline(time.Now().Add(time.Second * time.Duration(timeout)))
 		io.WriteString(conn, util.HexToString(probes))
 		length, err_read := conn.Read(buf)
 		if err_read == nil && length > 0 {
