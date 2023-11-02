@@ -6,7 +6,7 @@ before:
 builds:
   - id: darwin
     ldflags:
-      - -s -w
+      - -s -w -extldflags "-static"
     flags:
       - -trimpath
     env:
