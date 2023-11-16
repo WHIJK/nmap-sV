@@ -1,6 +1,7 @@
 package core
 
 import (
+	"github.com/dlclark/regexp2"
 	"regexp"
 	"strconv"
 	"strings"
@@ -24,8 +25,18 @@ func MatchGroup(src string, replace_text []string) string {
 }
 
 // 指纹匹配
-func MatchFingerprint(banner, reg string) ([]string, bool) {
-	if ok, _ := regexp.MatchString(reg, banner); ok {
+func MatchFingerprint(banner, reg, flag string) ([]string, bool) {
+	var re *regexp2.Regexp
+	switch flag {
+	case "s":
+		re = regexp2.MustCompile(reg, regexp2.Singleline)
+	case "i":
+		re = regexp2.MustCompile(reg, regexp2.IgnoreCase)
+	default:
+		re = regexp2.MustCompile(reg, regexp2.Multiline|regexp2.IgnoreCase)
+	}
+	// golang不支持Perl正则的全部
+	if ok, err := re.MatchString(banner); ok && err == nil {
 		compile, _ := regexp.Compile(reg)
 		match_arr := compile.FindStringSubmatch(banner)
 		return match_arr[1:], true // 只获取分组

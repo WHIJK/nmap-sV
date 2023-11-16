@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"github.com/WHIJK/nmap-sV/core/embed"
 	"github.com/WHIJK/nmap-sV/core/model"
 	"github.com/WHIJK/nmap-sV/core/util"
 	"io"
@@ -19,6 +20,11 @@ type NmapSdk struct {
 	BannerResult *model.BannerResult
 	IsMatch      string // 匹配状态,open==开放并且匹配成功，not matched==开放但是未匹配成功
 	Timeout      int
+	NmapStructs  []model.NmapStruct
+}
+
+func init() {
+	sdk.NmapStructs = embed.Load()
 }
 
 /*
@@ -28,17 +34,25 @@ NmapSv
 @param nmapStructs
 @return *model.BannerResult
 */
-func (sv *NmapSdk) NmapSv(address string, nmapStructs []model.NmapStruct) {
+func (sv *NmapSdk) NmapSv(address string) {
+	// 添加规则匹配
+	sv.AddPattern(&sdk.NmapStructs, "GetRequest", "^HTTP/1\\.[1\\|0]",
+		"http", "", "", "", "", "", "", "",
+		"")
+	sv.AddPattern(&sdk.NmapStructs, "TerminalServerCookie", "^\\x03\\x00\\x00\\x13\\x0e\\xd0\\x00\\x00\\x124\\x00\\x02.*\\x02\\x00\\x00\\x00",
+		"ms-wbt-server", "", "o:microsoft:windows", "", "", "", "Windows", "Microsoft Terminal Services",
+		"Windows 7 or Server 2008 R2")
+
 	port := strings.Split(address, ":")[1]
-	total := len(nmapStructs)
-	for i := 0; i < len(nmapStructs); i++ {
-		if nmapStructs[i].Protocol != "UDP" { // 跳过UDP
-			if util.StrInSlice(port, util.PortHandle(nmapStructs[i].Ports)) || i >= total { // 判断是否处于常用端口
-				if sv.BannerResult, sv.IsMatch = send(address, nmapStructs[i].Probestring, nmapStructs[i].Matches, sv.Timeout); sv.IsMatch == "open" || sv.IsMatch == "closed" {
+	total := len(sdk.NmapStructs)
+	for i := 0; i < len(sdk.NmapStructs); i++ {
+		if sdk.NmapStructs[i].Protocol != "UDP" { // 跳过UDP
+			if util.StrInSlice(port, util.PortHandle(sdk.NmapStructs[i].Ports)) || i >= total { // 判断是否处于常用端口
+				if sv.BannerResult, sv.IsMatch = send(address, sdk.NmapStructs[i].Probestring, sdk.NmapStructs[i].Matches, sv.Timeout); sv.IsMatch == "open" || sv.IsMatch == "closed" {
 					break
 				}
 			} else {
-				nmapStructs = append(nmapStructs, nmapStructs[i])
+				sdk.NmapStructs = append(sdk.NmapStructs, sdk.NmapStructs[i])
 			}
 		}
 	}
@@ -85,13 +99,14 @@ func send(address, probes string, matches []model.Matches, timeout int) (*model.
 			var matchArr []string
 
 			for _, match := range matches {
-				if match.PatternFlag != "" {
-					pattern = util.BufferJoin([]string{"(?", match.PatternFlag, ")", match.Pattern})
-				} else {
-					pattern = match.Pattern
-				}
-				matchArr, matchFlag = MatchFingerprint(util.ConvResponse(bannerPrint), pattern)
+				//if match.PatternFlag != "" {
+				//	pattern = util.BufferJoin([]string{"(?", match.PatternFlag, ")", match.Pattern})
+				//} else {
+				//	pattern = util.BufferJoin([]string{"(?i)", match.Pattern}) // 手动添加，忽略大小写
+				//}
+				matchArr, matchFlag = MatchFingerprint(util.ConvResponse(bannerPrint), pattern, match.PatternFlag)
 				if matchFlag { // 匹配到json文件中的正则
+					fmt.Printf("成功匹配规则：%v\n", pattern)
 					bannerResult.Service = match.Name
 					bannerResult.Banner.Operatingsystem = MatchGroup(match.Versioninfo.Operatingsystem, matchArr)
 					bannerResult.Banner.Vendorproductname = MatchGroup(match.Versioninfo.Vendorproductname, matchArr)
