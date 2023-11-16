@@ -35,11 +35,15 @@ func MatchFingerprint(banner, reg, flag string) ([]string, bool) {
 	default:
 		re = regexp2.MustCompile(reg, regexp2.Multiline|regexp2.IgnoreCase)
 	}
-	// golang不支持Perl正则的全部
+	// golang 原生不支持Perl正则的全部
 	if ok, err := re.MatchString(banner); ok && err == nil {
 		compile, _ := regexp.Compile(reg)
-		match_arr := compile.FindStringSubmatch(banner)
-		return match_arr[1:], true // 只获取分组
+		match_arr := compile.FindStringSubmatch(banner) // 只获取分组
+		if match_arr != nil {
+			return match_arr[1:], true
+		} else {
+			return []string{}, true
+		}
 	}
 	return []string{}, false
 }

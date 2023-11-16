@@ -4,48 +4,34 @@ package model
 @Author: OvO
 @Date: 2023/11/1 17:30
 */
+
 type NmapStruct struct {
-	Protocol     string      `json:"protocol"`
-	Probename    string      `json:"probename"`
-	Probestring  string      `json:"probestring"`
-	Ports        []string    `json:"ports"`
-	Sslports     []string    `json:"sslports"`
-	Totalwaitms  string      `json:"totalwaitms"`
-	Tcpwrappedms string      `json:"tcpwrappedms"`
-	Rarity       string      `json:"rarity"`
-	Fallback     string      `json:"fallback"`
-	Matches      []Matches   `json:"matches"`
-	softMatches  []softMatch `json:"softmatches"`
+	Protocol     string    `json:"protocol"`
+	Probename    string    `json:"probename"`
+	Probestring  string    `json:"probestring"`
+	Ports        []string  `json:"ports"`
+	Sslports     []string  `json:"sslports"`
+	Totalwaitms  string    `json:"totalwaitms"`
+	Tcpwrappedms string    `json:"tcpwrappedms"`
+	Rarity       string    `json:"rarity"`
+	Fallback     string    `json:"fallback"`
+	Matches      []Matches `json:"matches"`
+	Softmatches  []Matches `json:"softmatches"`
 }
-
+type Versioninfo struct {
+	Cpename           string `json:"cpename"`
+	Devicetype        string `json:"devicetype"`
+	Hostname          string `json:"hostname"`
+	Info              string `json:"info"`
+	Operatingsystem   string `json:"operatingsystem"`
+	Vendorproductname string `json:"vendorproductname"`
+	Version           string `json:"version"`
+}
 type Matches struct {
-	Pattern     string `json:"pattern"`
-	Name        string `json:"name"`
-	PatternFlag string `json:"pattern_flag"`
-	Versioninfo struct {
-		Cpename           string `json:"cpename"`
-		Devicetype        string `json:"devicetype"`
-		Hostname          string `json:"hostname"`
-		Info              string `json:"info"`
-		Operatingsystem   string `json:"operatingsystem"`
-		Vendorproductname string `json:"vendorproductname"`
-		Version           string `json:"version"`
-	} `json:"versioninfo"`
-}
-
-type softMatch struct {
-	Pattern     string `json:"pattern"`
-	Name        string `json:"name"`
-	PatternFlag string `json:"pattern_flag"`
-	Versioninfo struct {
-		Cpename           string `json:"cpename"`
-		Devicetype        string `json:"devicetype"`
-		Hostname          string `json:"hostname"`
-		Info              string `json:"info"`
-		Operatingsystem   string `json:"operatingsystem"`
-		Vendorproductname string `json:"vendorproductname"`
-		Version           string `json:"version"`
-	} `json:"versioninfo"`
+	Pattern     string      `json:"pattern"`
+	Name        string      `json:"name"`
+	PatternFlag string      `json:"pattern_flag"`
+	Versioninfo Versioninfo `json:"versioninfo"`
 }
 
 // 发送的json文件

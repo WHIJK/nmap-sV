@@ -5,6 +5,7 @@ import (
 	"github.com/WHIJK/nmap-sV/core/embed"
 	"github.com/WHIJK/nmap-sV/core/model"
 	"github.com/WHIJK/nmap-sV/core/util"
+	sliceutil "github.com/projectdiscovery/utils/slice"
 	"io"
 	"net"
 	"strings"
@@ -45,10 +46,11 @@ func (sv *NmapSdk) NmapSv(address string) {
 
 	port := strings.Split(address, ":")[1]
 	total := len(sdk.NmapStructs)
+
 	for i := 0; i < len(sdk.NmapStructs); i++ {
 		if sdk.NmapStructs[i].Protocol != "UDP" { // 跳过UDP
-			if util.StrInSlice(port, util.PortHandle(sdk.NmapStructs[i].Ports)) || i >= total { // 判断是否处于常用端口
-				if sv.BannerResult, sv.IsMatch = send(address, sdk.NmapStructs[i].Probestring, sdk.NmapStructs[i].Matches, sv.Timeout); sv.IsMatch == "open" || sv.IsMatch == "closed" {
+			if sliceutil.Contains(util.PortHandle(sdk.NmapStructs[i].Ports), port) || i >= total { // 判断是否处于常用端口
+				if sv.BannerResult, sv.IsMatch = send(address, sdk.NmapStructs[i].Probestring, append(sdk.NmapStructs[i].Matches, sdk.NmapStructs[i].Softmatches...), sv.Timeout); sv.IsMatch == "open" || sv.IsMatch == "closed" {
 					break
 				}
 			} else {
@@ -87,26 +89,19 @@ func send(address, probes string, matches []model.Matches, timeout int) (*model.
 		defer conn.Close()
 		conn.SetDeadline(time.Now().Add(time.Second * time.Duration(timeout)))
 		if probes != "" {
-			// 替换，否则会出现规则匹配问题
 			probes = strings.ReplaceAll(probes, "\\r\\n", "\r\n")
 			io.WriteString(conn, util.HexToString(probes))
 		}
 		length, err_read := conn.Read(buf)
 		if err_read == nil && length > 0 {
 			bannerPrint = string(buf[:length]) // 获得指纹信息
-			bannerResult.Banner.BannerPrint = strings.Trim(fmt.Sprintf("%#v", bannerPrint), `\"`)
-			var pattern string
+			bannerResult.Banner.BannerPrint = strings.Trim(fmt.Sprintf("%#v", bannerPrint), `"`)
 			var matchArr []string
 
 			for _, match := range matches {
-				//if match.PatternFlag != "" {
-				//	pattern = util.BufferJoin([]string{"(?", match.PatternFlag, ")", match.Pattern})
-				//} else {
-				//	pattern = util.BufferJoin([]string{"(?i)", match.Pattern}) // 手动添加，忽略大小写
-				//}
-				matchArr, matchFlag = MatchFingerprint(util.ConvResponse(bannerPrint), pattern, match.PatternFlag)
+				matchArr, matchFlag = MatchFingerprint(util.ConvResponse(bannerPrint), match.Pattern, match.PatternFlag)
 				if matchFlag { // 匹配到json文件中的正则
-					fmt.Printf("成功匹配规则：%v\n", pattern)
+					fmt.Printf("成功匹配规则：%v\n", match.Pattern)
 					bannerResult.Service = match.Name
 					bannerResult.Banner.Operatingsystem = MatchGroup(match.Versioninfo.Operatingsystem, matchArr)
 					bannerResult.Banner.Vendorproductname = MatchGroup(match.Versioninfo.Vendorproductname, matchArr)
@@ -152,7 +147,7 @@ func (sv *NmapSdk) AddPattern(nmapStructs *[]model.NmapStruct, probename, patter
 		Pattern:     strings.ReplaceAll(pattern, `\x00`, `\0`),
 		Name:        name,
 		PatternFlag: pattern_flag,
-		Versioninfo: Versioninfo{
+		Versioninfo: model.Versioninfo{
 			Cpename:           cpename,
 			Devicetype:        devicetype,
 			Hostname:          hostname,

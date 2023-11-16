@@ -17,10 +17,13 @@ var nmapJson []byte
 //go:embed new.json
 var newJson []byte
 
-// 加载可执行目录的namp 指纹文件,与数据文件
+/*
+Load
+@Description: 加载可执行目录的namp 指纹文件,与数据文件
+@return []model.NmapStruct
+*/
 func Load() []model.NmapStruct {
-	nmapStructs := make([]model.NmapStruct, 0)
-	newStructs := make([]model.NmapStruct, 0)
+	var nmapStructs, newStructs []model.NmapStruct
 	json.Unmarshal(nmapJson, &nmapStructs)
 	json.Unmarshal(newJson, &newStructs)
 	newStructs = append(newStructs, nmapStructs...)
