@@ -6,8 +6,10 @@ import (
 	"github.com/WHIJK/nmap-sV/core/model"
 	"github.com/WHIJK/nmap-sV/core/util"
 	sliceutil "github.com/projectdiscovery/utils/slice"
+	stringsutil "github.com/projectdiscovery/utils/strings"
 	"io"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -40,6 +42,9 @@ func (sv *NmapSdk) NmapSv(address string) {
 	sv.AddPattern(&sdk.NmapStructs, "GetRequest", "^HTTP/1\\.[1\\|0]",
 		"http", "", "", "", "", "", "", "",
 		"")
+	sv.AddPattern(&sdk.NmapStructs, "HTTPOptions", "^HTTP/1\\.[1\\|0]",
+		"http", "", "", "", "", "", "", "",
+		"")
 	sv.AddPattern(&sdk.NmapStructs, "TerminalServerCookie", "^\\x03\\x00\\x00\\x13\\x0e\\xd0\\x00\\x00\\x124\\x00\\x02.*\\x02\\x00\\x00\\x00",
 		"ms-wbt-server", "", "o:microsoft:windows", "", "", "", "Windows", "Microsoft Terminal Services",
 		"Windows 7 or Server 2008 R2")
@@ -49,8 +54,17 @@ func (sv *NmapSdk) NmapSv(address string) {
 
 	for i := 0; i < len(sdk.NmapStructs); i++ {
 		if sdk.NmapStructs[i].Protocol != "UDP" { // 跳过UDP
-			if sliceutil.Contains(util.PortHandle(sdk.NmapStructs[i].Ports), port) || i >= total { // 判断是否处于常用端口
-				if sv.BannerResult, sv.IsMatch = send(address, sdk.NmapStructs[i].Probestring, append(sdk.NmapStructs[i].Matches, sdk.NmapStructs[i].Softmatches...), sv.Timeout); sv.IsMatch == "open" || sv.IsMatch == "closed" {
+			if i >= total || sdk.NmapStructs[i].Probestring == "" || sliceutil.Contains(util.PortHandle(sdk.NmapStructs[i].Ports), port) { // 探针为空，处于优先端口将优先探测
+				//等待时间
+				timeout := sv.Timeout
+				if sdk.NmapStructs[i].Totalwaitms != "" {
+					timeoutTemp, err := strconv.Atoi(sdk.NmapStructs[i].Totalwaitms)
+					if err != nil {
+						timeoutTemp = sv.Timeout
+					}
+					timeout = timeoutTemp / 1000
+				}
+				if sv.BannerResult, sv.IsMatch = send(address, sdk.NmapStructs[i].Probename, sdk.NmapStructs[i].Probestring, append(sdk.NmapStructs[i].Matches, sdk.NmapStructs[i].Softmatches...), timeout); sv.IsMatch == "open" || sv.IsMatch == "closed" {
 					break
 				}
 			} else {
@@ -64,12 +78,12 @@ func (sv *NmapSdk) NmapSv(address string) {
 send
 @Description: 发送数据并进行匹配
 @param address
-@param probes
+@param probes 探针
 @param matches
 @return *model.BannerResult
 @return string
 */
-func send(address, probes string, matches []model.Matches, timeout int) (*model.BannerResult, string) {
+func send(address, probename, probes string, matches []model.Matches, timeout int) (*model.BannerResult, string) {
 	var buf = make([]byte, 2048)
 	var bannerPrint string // 记录端口的banner信息
 	var bannerResult = &model.BannerResult{
@@ -82,37 +96,60 @@ func send(address, probes string, matches []model.Matches, timeout int) (*model.
 			BannerPrint:       "",
 		},
 	} // banner结果存储
-	var matchFlag bool // 是否成功匹配指纹标志位
-
 	conn, err := net.DialTimeout("tcp", address, time.Second*time.Duration(timeout))
 	if err == nil {
-		defer conn.Close()
 		conn.SetDeadline(time.Now().Add(time.Second * time.Duration(timeout)))
+		defer conn.Close()
 		if probes != "" {
 			probes = strings.ReplaceAll(probes, "\\r\\n", "\r\n")
-			io.WriteString(conn, util.HexToString(probes))
+			io.WriteString(conn, fmt.Sprintf("%s\n", util.HexToString(probes)))
 		}
 		length, err_read := conn.Read(buf)
 		if err_read == nil && length > 0 {
 			bannerPrint = string(buf[:length]) // 获得指纹信息
-			bannerResult.Banner.BannerPrint = strings.Trim(fmt.Sprintf("%#v", bannerPrint), `"`)
-			var matchArr []string
-
-			for _, match := range matches {
-				matchArr, matchFlag = MatchFingerprint(util.ConvResponse(bannerPrint), match.Pattern, match.PatternFlag)
-				if matchFlag { // 匹配到json文件中的正则
-					fmt.Printf("成功匹配规则：%v\n", match.Pattern)
-					bannerResult.Service = match.Name
-					bannerResult.Banner.Operatingsystem = MatchGroup(match.Versioninfo.Operatingsystem, matchArr)
-					bannerResult.Banner.Vendorproductname = MatchGroup(match.Versioninfo.Vendorproductname, matchArr)
-					bannerResult.Banner.Version = MatchGroup(match.Versioninfo.Version, matchArr)
-					return bannerResult, "open"
-				}
+			return matchResponse(matches, bannerResult, bannerPrint, probes)
+		} else if length == 0 && stringsutil.ContainsAnyI(probename, "GetRequest", "HTTPOptions") { // 当是这两个探针时，发送后没有数据，则会发送HTTP请求进行探测匹配
+			url := "http://" + address
+			if stringsutil.SplitAny(address, ":")[1] == "80" {
+				url = "http://" + stringsutil.SplitAny(address, ":")[0]
+			}
+			status, resp := util.GetHttpBanner(url, timeout)
+			if status {
+				return matchResponse(matches, bannerResult, resp, probes)
 			}
 		}
 	} else {
 		fmt.Println(address, " Timeout")
 		return bannerResult, "closed"
+	}
+	return bannerResult, "not matched"
+}
+
+/*
+matchResponse
+@Description:  响应匹配
+@param matches
+@param bannerResult
+@param bannerPrint
+@param probes
+@return *model.BannerResult
+@return string
+*/
+func matchResponse(matches []model.Matches, bannerResult *model.BannerResult, bannerPrint, probes string) (*model.BannerResult, string) {
+	var matchFlag bool // 是否成功匹配指纹标志位
+	var matchArr []string
+	bannerResult.Banner.BannerPrint = strings.Trim(fmt.Sprintf("%#v", bannerPrint), `"`)
+	for _, match := range matches {
+		matchArr, matchFlag = MatchFingerprint(util.ConvResponse(bannerPrint), match.Pattern, match.PatternFlag)
+		if matchFlag { // 匹配到json文件中的正则
+			bannerResult.Service = match.Name
+			bannerResult.ProbeString = probes
+			bannerResult.Pattern = fmt.Sprintf("%v", match.Pattern)
+			bannerResult.Banner.Operatingsystem = MatchGroup(match.Versioninfo.Operatingsystem, matchArr)
+			bannerResult.Banner.Vendorproductname = MatchGroup(match.Versioninfo.Vendorproductname, matchArr)
+			bannerResult.Banner.Version = MatchGroup(match.Versioninfo.Version, matchArr)
+			return bannerResult, "open"
+		}
 	}
 	return bannerResult, "not matched"
 }
