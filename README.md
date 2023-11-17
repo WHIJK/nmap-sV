@@ -6,10 +6,11 @@
 
 # nmap-sV
 使用nmap指纹，利用go实现指纹探测
->- new.json为新增加的探针与对应的规则，自带规则无HTTP/1.1
->- **未匹配到可能会很慢**
 >- **仅 TCP  !!!!!**
+>- **未匹配到可能会很慢**
+>- new.json为新增加的探针与对应的规则
 >- 已有探针上添加匹配规则，使用AddPattern函数
+>- 支持域名，未添加端口，默认为80
 ```
 No input detected. Hint: cat ip:port.txt | file
 Usage of nmap-sV:
