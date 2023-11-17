@@ -5,7 +5,8 @@ import (
 	"bytes"
 	"encoding/hex"
 	"github.com/WHIJK/nmap-sV/option"
-	"net"
+	iputil "github.com/projectdiscovery/utils/ip"
+	stringsutil "github.com/projectdiscovery/utils/strings"
 	"os"
 	"regexp"
 	"sort"
@@ -29,19 +30,33 @@ func ConvResponse(s1 string) string {
 	return s2
 }
 
-// 从json文件中获得的是字符串，需要将它转化为\x16进制格式
+/*
+HexToString
+@Description: 从json文件中获得的是字符串，需要将其转化为 \u 、\x转化为对应的字符串
+@param hexstr
+@return string
+*/
 func HexToString(hexstr string) string { // hexstr example: \\x25\\x00\\x00\\x00\\x00,
 	hexstr = strings.ReplaceAll(hexstr, "\\0", "\\x00")
+	unicodeRegex := regexp.MustCompile(`\\u[0-9a-fA-F]{4}`)
+	decodedString := unicodeRegex.ReplaceAllStringFunc(hexstr, func(match string) string {
+		codePoint, err := strconv.ParseUint(match[2:], 16, 32)
+		if err != nil {
+			return match
+		}
+		return string(rune(codePoint))
+	})
+
 	reg1 := regexp.MustCompile(`\\x([0-9a-zA-Z][0-9a-zA-Z])`) // 匹配\x+16进制字符
-	result := reg1.FindAllStringSubmatch(hexstr, -1)          // 将获得例如： [\x25 =》25] [\x00 =》 00]
+	result := reg1.FindAllStringSubmatch(decodedString, -1)   // 将获得例如： [\x25 =》25] [\x00 =》 00]
 	for _, v := range result {                                //
-		if !strings.Contains(hexstr, v[1]) {
+		if !strings.Contains(decodedString, v[1]) {
 			continue
 		}
 		a, _ := hex.DecodeString(v[1])
-		hexstr = strings.Replace(hexstr, v[0], string(a), -1)
+		decodedString = strings.Replace(decodedString, v[0], string(a), -1)
 	}
-	return hexstr
+	return decodedString
 }
 
 // 字符串连接
@@ -65,32 +80,25 @@ func W2json(one string) {
 	write.Flush()
 }
 
-// 验证IP有效性
-func matchIP(ip string) bool {
-	if isIP := net.ParseIP(ip); isIP != nil {
-		return true
-	}
-	return false
-}
-
-// 验证输入是否合法
-func MatchIPPORT(ip string) (string, string, bool) {
-	port := ""
-	if !strings.Contains(ip, ":") {
-		if matchIP(ip) {
-			job := strings.Join([]string{ip, "80"}, ":")
-			port = "80"
-			return job, port, true
+/*
+MatchInput
+@Description: 验证输入是否合法
+@param ip
+@return string
+@return string
+@return bool
+*/
+func MatchInput(input string) (string, bool) {
+	var inputSplit = []string{}
+	if stringsutil.ContainsAnyI(input, ":") {
+		inputSplit = stringsutil.SplitAny(input, ":")
+		if len(inputSplit) != 2 || !iputil.IsPort(inputSplit[1]) {
+			return input, false
 		}
 	} else {
-		ip_port := strings.Split(ip, ":")
-		port = ip_port[1]
-		if matchIP(ip_port[0]) {
-			return ip, port, true
-		}
+		return strings.Join([]string{input, "80"}, ":"), true
 	}
-
-	return ip, port, false
+	return input, true
 }
 
 // 处理端口范围
