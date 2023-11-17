@@ -43,14 +43,11 @@ type DataStrut struct {
 
 // 结果struct
 type BannerResult struct {
-	Address string `json:"address"`
-	Service string `json:""`
-	Banner  struct {
-		Operatingsystem   string `json:"operatingsystem"`
-		Vendorproductname string `json:"vendorproductname"`
-		Version           string `json:"version"`
-		BannerPrint       string `json:"bannerPrint"`
-	}
+	Address     string `json:"address"`
+	Service     string `json:""`
+	Banner      Banner
+	Pattern     string // 匹配成功规则
+	ProbeString string // 探针
 }
 
 type Banner struct {

@@ -19,11 +19,6 @@ func Run(address string, bannerChannel chan string) {
 	//sdk.AddPattern(&sdk.NmapStructs, "TerminalServerCookie", "^\\x03\\x00\\x00\\x13\\x0e\\xd0\\x00\\x00\\x124\\x00\\x02.*\\x02\\x00\\x00\\x00",
 	//	"ms-wbt-server", "", "o:microsoft:windows", "", "", "", "Windows", "Microsoft Terminal Services",
 	//	"Windows 7 or Server 2008 R2")
-	//sdk.AddPattern(&sdk.NmapStructs, "GetRequest", "^HTTP/1\\.[1\\|0]",
-	//	"http", "", "", "", "", "", "", "",
-	//	"")
-	//sdk.AddPattern(&sdk.NmapStructs, "SMBProgNeg", "^?si:\\x00\\x00...SMB.*", "smb", "", "", "", "", "", "", "",
-	//	"")
 	if sdk.IsMatch != "closed" {
 		a, _ := json.Marshal(sdk.BannerResult)
 		bannerChannel <- string(a)
