@@ -48,7 +48,9 @@ func (sv *NmapSdk) NmapSv(address string) {
 	sv.AddPattern(&sdk.NmapStructs, "TerminalServerCookie", "^\\x03\\x00\\x00\\x13\\x0e\\xd0\\x00\\x00\\x124\\x00\\x02.*\\x02\\x00\\x00\\x00",
 		"ms-wbt-server", "", "o:microsoft:windows", "", "", "", "Windows", "Microsoft Terminal Services",
 		"Windows 7 or Server 2008 R2")
-
+	if sv.Timeout == 0 {
+		sv.Timeout = 5
+	}
 	port := strings.Split(address, ":")[1]
 	total := len(sdk.NmapStructs)
 
@@ -102,7 +104,7 @@ func send(address, probename, probes string, matches []model.Matches, timeout in
 		defer conn.Close()
 		if probes != "" {
 			probes = strings.ReplaceAll(probes, "\\r\\n", "\r\n")
-			io.WriteString(conn, fmt.Sprintf("%s\n", util.HexToString(probes)))
+			io.WriteString(conn, fmt.Sprintf("%s", util.HexToString(probes)))
 		}
 		length, err_read := conn.Read(buf)
 		if err_read == nil && length > 0 {
@@ -142,7 +144,18 @@ func matchResponse(matches []model.Matches, bannerResult *model.BannerResult, ba
 	for _, match := range matches {
 		matchArr, matchFlag = MatchFingerprint(util.ConvResponse(bannerPrint), match.Pattern, match.PatternFlag)
 		if matchFlag { // 匹配到json文件中的正则
-			bannerResult.Service = match.Name
+			var service string
+			switch match.Name {
+			case "ms-wbt-server":
+				service = "rdp"
+			case "microsoft-ds":
+				service = "smb"
+			case "oracle-tns":
+				service = "oracle"
+			case "ms-sql-s":
+				service = "mssql"
+			}
+			bannerResult.Service = service
 			bannerResult.ProbeString = probes
 			bannerResult.Pattern = fmt.Sprintf("%v", match.Pattern)
 			bannerResult.Banner.Operatingsystem = MatchGroup(match.Versioninfo.Operatingsystem, matchArr)
