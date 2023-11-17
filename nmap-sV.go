@@ -25,7 +25,7 @@ var bannerStruct model.BannerResult
 // 任务创建
 func createJobs(s *bufio.Scanner) {
 	for s.Scan() {
-		if job, _, ok := util.MatchIPPORT(fmt.Sprintf("%s", strings.ReplaceAll(s.Text(), " ", ""))); ok {
+		if job, ok := util.MatchInput(fmt.Sprintf("%s", strings.ReplaceAll(s.Text(), " ", ""))); ok {
 			jobsChannel <- job
 		} else {
 			fmt.Println(job + " input error")
