@@ -82,21 +82,24 @@ func (sv *NmapSdk) NmapSv(address string) {
 			sv.IsMatch = Closed
 			break
 		}
-		// 	协议匹配	   &&  (i >= total 未优先级探针匹配 ||  优先端口探测)
-		if (strings.ToLower(sdk.NmapStructs[i].Protocol) == sv.Protocol || sv.Protocol == "") && (i >= total || sliceutil.Contains(util.PortHandle(sdk.NmapStructs[i].Ports), port)) {
-			//等待时间
-			if sdk.NmapStructs[i].Totalwaitms != "" {
-				timeoutTemp, err := strconv.Atoi(sdk.NmapStructs[i].Totalwaitms)
-				if err == nil {
-					sv.Timeout = timeoutTemp / 1000
+		// 	协议匹配
+		if strings.ToLower(sdk.NmapStructs[i].Protocol) == sv.Protocol || sv.Protocol == "" {
+			// (i >= total 未优先级探针匹配 ||  优先端口探测)
+			if i >= total || sliceutil.Contains(util.PortHandle(sdk.NmapStructs[i].Ports), port) {
+				//等待时间
+				if sdk.NmapStructs[i].Totalwaitms != "" {
+					timeoutTemp, err := strconv.Atoi(sdk.NmapStructs[i].Totalwaitms)
+					if err == nil {
+						sv.Timeout = timeoutTemp / 1000
+					}
 				}
+				if sv.BannerResult, sv.IsMatch = sv.send(strings.ToLower(sdk.NmapStructs[i].Protocol), address, sdk.NmapStructs[i].Probename, sdk.NmapStructs[i].Probestring, append(sdk.NmapStructs[i].Matches, sdk.NmapStructs[i].Softmatches...)); sv.IsMatch == Open || sv.IsMatch == Closed {
+					break
+				}
+			} else {
+				// 未优先的放置最后探测
+				sdk.NmapStructs = append(sdk.NmapStructs, sdk.NmapStructs[i])
 			}
-			if sv.BannerResult, sv.IsMatch = sv.send(strings.ToLower(sdk.NmapStructs[i].Protocol), address, sdk.NmapStructs[i].Probename, sdk.NmapStructs[i].Probestring, append(sdk.NmapStructs[i].Matches, sdk.NmapStructs[i].Softmatches...)); sv.IsMatch == Open || sv.IsMatch == Closed {
-				break
-			}
-		} else {
-			// 未优先的放置最后
-			sdk.NmapStructs = append(sdk.NmapStructs, sdk.NmapStructs[i])
 		}
 	}
 }
@@ -125,6 +128,9 @@ func (sv *NmapSdk) send(protocol, address, probename, probes string, matches []m
 	} // banner结果存储
 	conn, err := net.DialTimeout(protocol, address, time.Second*time.Duration(sv.Timeout))
 	if err == nil {
+		if protocol != "udp" {
+			sv.Protocol = protocol // 获如果不是发送的udp，未报错，也能判断协议正确
+		}
 		conn.SetDeadline(time.Now().Add(time.Second * time.Duration(sv.Timeout)))
 		defer conn.Close()
 		if probes != "" {
