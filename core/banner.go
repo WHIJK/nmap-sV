@@ -79,6 +79,7 @@ func (sv *NmapSdk) NmapSv(address string) {
 	for i := 0; i < len(sdk.NmapStructs); i++ {
 		// 优先级别端口未匹配成功，跳出并修改状态为关闭，因为端口有可能是端口关闭，避免全部扫描
 		if i >= total && sv.Protocol == "udp" && sv.IsMatch == NotMatched {
+			gologger.Error().Msgf("%s udp not matched , change to closed", address)
 			sv.IsMatch = Closed
 			break
 		}
@@ -159,8 +160,6 @@ func (sv *NmapSdk) send(protocol, address, probename, probes string, matches []m
 	} else if sv.Protocol == "" && protocol == "tcp" && stringsutil.ContainsAny(err.Error(), "refused") { // udp端口发送了tcp数据可能报错，connectex: No connection could be made because the target machine actively refused it.
 		sv.Protocol = "udp" // 也有可能是端口关闭了
 		return bannerResult, NotMatched
-	} else if protocol == "udp" {
-
 	} else {
 		gologger.Error().Msg(address + " Timeout")
 		return bannerResult, Closed

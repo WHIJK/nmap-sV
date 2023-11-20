@@ -79,6 +79,11 @@ func worker(wg *sync.WaitGroup) {
 }
 
 func init() {
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "v1.5.6 Usage: %s [options]\n", os.Args[0])
+		fmt.Println("Options:")
+		flag.PrintDefaults()
+	}
 	flag.Parse()
 }
 
