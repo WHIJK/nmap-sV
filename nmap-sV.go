@@ -73,14 +73,14 @@ func createPool(threads int) {
 // 执行任务
 func worker(wg *sync.WaitGroup) {
 	for v := range jobsChannel {
-		core.Run(v, bannerChannel)
+		core.Run(v, bannerChannel, *option.TaskNumber)
 	}
 	wg.Done()
 }
 
 func init() {
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "v1.5.6 Usage: %s [options]\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "v1.5.7 Usage: %s [options]\n", os.Args[0])
 		fmt.Println("Options:")
 		flag.PrintDefaults()
 	}

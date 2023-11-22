@@ -10,11 +10,10 @@ import (
 @Date: 2023/11/1 20:11
 */
 
-var sdk = NmapSdk{}
-
-func Run(address string, bannerChannel chan string) {
+func Run(address string, bannerChannel chan string, matchJob int) {
+	var sdk = NmapSdk{}
 	sdk.Timeout = *option.Timeout
-	sdk.NmapSv(address)
+	sdk.NmapSv(address, matchJob)
 	// 添加规则示例
 	//sdk.AddPattern(&sdk.NmapStructs, "TerminalServerCookie", "^\\x03\\x00\\x00\\x13\\x0e\\xd0\\x00\\x00\\x124\\x00\\x02.*\\x02\\x00\\x00\\x00",
 	//	"ms-wbt-server", "", "o:microsoft:windows", "", "", "", "Windows", "Microsoft Terminal Services",

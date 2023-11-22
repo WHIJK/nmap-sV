@@ -13,10 +13,8 @@ import (
 
 func TestRunner(t *testing.T) {
 	var sdk2 = NmapSdk{}
-	//sdk2.NmapSv("211.75.68.17:1194")
-	//sdk2.NmapSv("110.188.79.63:1194")
-	//sdk2.NmapSv("127.0.0.1:445")
-	sdk2.NmapSv("127.0.0.1:53")
+	sdk2.NmapSv("120.55.203.40:2008", 30)
+	//sdk2.HandleByGoRunTine("10.2.2.15:22", 30)
 	fmt.Println(sdk2.IsMatch)
 	fmt.Println(sdk2.Protocol)
 	if sdk2.IsMatch != "closed" {

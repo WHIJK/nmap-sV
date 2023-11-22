@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"github.com/WHIJK/nmap-sV/core/embed"
 	"github.com/WHIJK/nmap-sV/core/model"
@@ -10,9 +11,11 @@ import (
 	sliceutil "github.com/projectdiscovery/utils/slice"
 	stringsutil "github.com/projectdiscovery/utils/strings"
 	"io"
+	"math"
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -32,21 +35,25 @@ type NmapSdk struct {
 	IsMatch      string // 匹配状态,open==开放并且匹配成功，not matched==开放但是未匹配成功
 	Protocol     string // tcp | udp
 	Timeout      int
-	NmapStructs  []model.NmapStruct
 }
 
+var nmapStructs []model.NmapStruct
+
 func init() {
-	sdk.NmapStructs = embed.Load()
+	nmapStructs = embed.Load()
 }
 
 /*
 NmapSv
-@Description:  处理优先级，并进行扫描
+@Description:  通过Goruntine分割处理需要发送的探针与对一个匹配的规则
+@receiver sv
 @param address
-@param nmapStructs
-@return *model.BannerResult
+@param jobSingle  每个goruntine需要处理多少任务，越大，则goruntine越少
 */
-func (sv *NmapSdk) NmapSv(address string) {
+func (sv *NmapSdk) NmapSv(address string, jobSingle int) {
+	if !stringsutil.ContainsAny(address, ":") {
+		return
+	}
 	if sv.Timeout == 0 {
 		sv.Timeout = 5
 	}
@@ -64,45 +71,104 @@ func (sv *NmapSdk) NmapSv(address string) {
 		return
 	}
 	// 添加规则匹配
-	sv.AddPattern(&sdk.NmapStructs, "GetRequest", "^HTTP/1\\.[1\\|0]",
+	sv.AddPattern(&nmapStructs, "GetRequest", "^HTTP/1\\.[1\\|0]",
 		"http", "", "", "", "", "", "", "",
 		"")
-	sv.AddPattern(&sdk.NmapStructs, "HTTPOptions", "^HTTP/1\\.[1\\|0]",
+	sv.AddPattern(&nmapStructs, "HTTPOptions", "^HTTP/1\\.[1\\|0]",
 		"http", "", "", "", "", "", "", "",
 		"")
-	sv.AddPattern(&sdk.NmapStructs, "TerminalServerCookie", "^\\x03\\x00\\x00\\x13\\x0e\\xd0\\x00\\x00\\x124\\x00\\x02.*\\x02\\x00\\x00\\x00",
+	sv.AddPattern(&nmapStructs, "TerminalServerCookie", "^\\x03\\x00\\x00\\x13\\x0e\\xd0\\x00\\x00\\x124\\x00\\x02.*\\x02\\x00\\x00\\x00",
 		"ms-wbt-server", "", "o:microsoft:windows", "", "", "", "Windows", "Microsoft Terminal Services",
 		"Windows 7 or Server 2008 R2")
-
-	port := strings.Split(address, ":")[1]
-	total := len(sdk.NmapStructs)
-	for i := 0; i < len(sdk.NmapStructs); i++ {
-		// 优先级别端口未匹配成功，跳出并修改状态为关闭，因为端口有可能是端口关闭，避免全部扫描
-		if i >= total && sv.Protocol == "udp" && sv.IsMatch == NotMatched {
-			gologger.Error().Msgf("%s udp not matched , change to closed", address)
-			sv.IsMatch = Closed
-			break
+	worker := int(math.Ceil(float64(len(nmapStructs)) / float64(jobSingle)))
+	var wg sync.WaitGroup
+	var ctx, cancel = context.WithCancel(context.Background())
+	resultChan := make(chan string, 2048)
+	for i := 0; i < worker; i++ {
+		wg.Add(1)
+		if (i+1)*jobSingle <= len(nmapStructs) {
+			go sv.HandleEveryGoRunTine(nmapStructs[i*jobSingle:(i+1)*jobSingle], address, &wg, ctx, resultChan) // 启动多个goroutine，每个处理切片的一部分
+		} else {
+			go sv.HandleEveryGoRunTine(nmapStructs[(i)*jobSingle:], address, &wg, ctx, resultChan) // 超出长度，则处理至结束
 		}
-		// 	协议匹配
-		if strings.ToLower(sdk.NmapStructs[i].Protocol) == sv.Protocol || sv.Protocol == "" {
-			// (i >= total 未优先级探针匹配 ||  优先端口探测)
-			if i >= total || sliceutil.Contains(util.PortHandle(sdk.NmapStructs[i].Ports), port) {
-				//等待时间
-				if sdk.NmapStructs[i].Totalwaitms != "" {
-					timeoutTemp, err := strconv.Atoi(sdk.NmapStructs[i].Totalwaitms)
-					if err == nil {
-						sv.Timeout = timeoutTemp / 1000
+	}
+	go func() {
+		wg.Wait()
+		close(resultChan) // 关闭通道，表示所有goroutine都已经完成
+	}()
+	// 通过select循环监听通道，取得最先发送的结果
+	for {
+		select {
+		case index, ok := <-resultChan:
+			if ok {
+				cancel()
+				switch index {
+				case Closed:
+					gologger.Error().Msg(address + " Timeout")
+				case NotMatched:
+					if sv.Protocol == "udp" { // 如果Udp未匹配到，则直接变成closed状态【udp只匹配优先端口】
+						sv.IsMatch = Closed
 					}
 				}
-				if sv.BannerResult, sv.IsMatch = sv.send(strings.ToLower(sdk.NmapStructs[i].Protocol), address, sdk.NmapStructs[i].Probename, sdk.NmapStructs[i].Probestring, append(sdk.NmapStructs[i].Matches, sdk.NmapStructs[i].Softmatches...)); sv.IsMatch == Open || sv.IsMatch == Closed {
-					break
-				}
-			} else {
-				// 未优先的放置最后探测
-				sdk.NmapStructs = append(sdk.NmapStructs, sdk.NmapStructs[i])
+				return
 			}
 		}
 	}
+
+}
+
+/*
+HandleEveryGoRunTine
+@Description: 对每一个goruntine的任务进行处理
+@receiver sv
+@param iNmapStructs
+@param address
+@param wg
+@param ctx
+@param resultChan
+*/
+func (sv *NmapSdk) HandleEveryGoRunTine(iNmapStructs []model.NmapStruct, address string, wg *sync.WaitGroup, ctx context.Context, resultChan chan string) {
+	defer wg.Done()
+	var tempNmapStructs []model.NmapStruct
+	port := stringsutil.SplitAny(address, ":")[1]
+	twice := 0
+AppendScan:
+	if twice < 2 {
+		twice++
+		for _, nmapStruct := range iNmapStructs {
+			//等待时间
+			if nmapStruct.Totalwaitms != "" {
+				timeoutTemp, err := strconv.Atoi(nmapStruct.Totalwaitms)
+				if err == nil {
+					sv.Timeout = timeoutTemp / 1000
+				}
+			}
+			select {
+			case <-ctx.Done():
+				return // 如果接收到停止信号，立即返回
+			default:
+				if strings.ToLower(nmapStruct.Protocol) == sv.Protocol || sv.Protocol == "" {
+					//  优先端口探测
+					if sliceutil.Contains(util.PortHandle(nmapStruct.Ports), port) || twice >= 2 {
+						if sv.BannerResult, sv.IsMatch = sv.send(strings.ToLower(nmapStruct.Protocol), address, nmapStruct.Probename, nmapStruct.Probestring, append(nmapStruct.Matches, nmapStruct.Softmatches...)); sv.IsMatch == Open || sv.IsMatch == Closed {
+							resultChan <- sv.IsMatch
+							ctx.Done()
+							return
+						}
+					} else { // 未探测的则放置第二次
+						tempNmapStructs = append(tempNmapStructs, nmapStruct)
+					}
+				}
+			}
+		}
+	}
+	if twice < 2 {
+		iNmapStructs = tempNmapStructs
+		goto AppendScan
+	}
+	resultChan <- NotMatched
+	ctx.Done()
+	return
 }
 
 /*
@@ -158,10 +224,9 @@ func (sv *NmapSdk) send(protocol, address, probename, probes string, matches []m
 		sv.Protocol = "tcp"
 		return bannerResult, NotMatched
 	} else if sv.Protocol == "" && protocol == "tcp" && stringsutil.ContainsAny(err.Error(), "refused") { // udp端口发送了tcp数据可能报错，connectex: No connection could be made because the target machine actively refused it.
-		sv.Protocol = "udp" // 也有可能是端口关闭了
+		sv.Protocol = "udp"
 		return bannerResult, NotMatched
-	} else {
-		gologger.Error().Msg(address + " Timeout")
+	} else if sv.Protocol == "tcp" { // 如果tcp协议报错，直接判断端口关闭
 		return bannerResult, Closed
 	}
 	return bannerResult, NotMatched
