@@ -8,7 +8,7 @@ import "flag"
 */
 
 var Threads = flag.Int("t", 50, "Threads")
-var TaskNumber = flag.Int("n", 30, "the number of tasks each goruntine will handle when send and match") //会根据指定的任务数量分配goruntine的数量
+var TaskNumber = flag.Int("n", 30, "the number of tasks each goroutine will handle when send and match") //会根据指定的任务数量分配goroutine的数量
 var File = flag.String("o", "", "Output to  json")
 var Pattern = flag.Bool("p", false, "show pattern")
 var Banner = flag.Bool("b", false, "Show port banner")

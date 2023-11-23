@@ -45,10 +45,10 @@ func init() {
 
 /*
 NmapSv
-@Description:  通过Goruntine分割处理需要发送的探针与对一个匹配的规则
+@Description:  通过Goroutine分割处理需要发送的探针与对一个匹配的规则
 @receiver sv
 @param address
-@param jobSingle  每个goruntine需要处理多少任务，越大，则goruntine越少
+@param jobSingle  每个goroutine需要处理多少任务，越大，则goroutine越少
 @param scanType 扫描类型
 */
 func (sv *NmapSdk) NmapSv(address string, jobSingle int, scanType string) {
@@ -102,9 +102,9 @@ func (sv *NmapSdk) NmapSv(address string, jobSingle int, scanType string) {
 	for i := 0; i < worker; i++ {
 		wg.Add(1)
 		if (i+1)*jobSingle <= len(nmapStructs) {
-			go sv.HandleEveryGoRunTine(nmapStructs[i*jobSingle:(i+1)*jobSingle], address, &wg, ctx, resultChan) // 启动多个goroutine，每个处理切片的一部分
+			go sv.HandleEveryGoRouTine(nmapStructs[i*jobSingle:(i+1)*jobSingle], address, &wg, ctx, resultChan) // 启动多个goroutine，每个处理切片的一部分
 		} else {
-			go sv.HandleEveryGoRunTine(nmapStructs[(i)*jobSingle:], address, &wg, ctx, resultChan) // 超出长度，则处理至结束
+			go sv.HandleEveryGoRouTine(nmapStructs[(i)*jobSingle:], address, &wg, ctx, resultChan) // 超出长度，则处理至结束
 		}
 	}
 	go func() {
@@ -154,8 +154,8 @@ func (sv *NmapSdk) NmapSv(address string, jobSingle int, scanType string) {
 }
 
 /*
-HandleEveryGoRunTine
-@Description: 对每一个goruntine的任务进行处理
+HandleEveryGoRouTine
+@Description: 对每一个goroutine的任务进行处理
 @receiver sv
 @param iNmapStructs
 @param address
@@ -163,7 +163,7 @@ HandleEveryGoRunTine
 @param ctx
 @param resultChan
 */
-func (sv *NmapSdk) HandleEveryGoRunTine(iNmapStructs []model.NmapStruct, address string, wg *sync.WaitGroup, ctx context.Context, resultChan chan NmapSdk) {
+func (sv *NmapSdk) HandleEveryGoRouTine(iNmapStructs []model.NmapStruct, address string, wg *sync.WaitGroup, ctx context.Context, resultChan chan NmapSdk) {
 	defer wg.Done()
 	var tempNmapStructs []model.NmapStruct
 	// banner结果存储
@@ -229,7 +229,7 @@ func (sv *NmapSdk) send(protocol, address, probename, probes string, matches []m
 		},
 		Protocol: "",
 	}
-	//如果一个goruntine判断出了协议，这里就会跳过其他协议探针的发送
+	//如果一个goroutine判断出了协议，这里就会跳过其他协议探针的发送
 	if sv.Protocol == "" || sv.Protocol == protocol {
 		var buf = make([]byte, 2048)
 		conn, err := net.DialTimeout(protocol, address, time.Second*time.Duration(sv.Timeout))
@@ -265,7 +265,6 @@ func (sv *NmapSdk) send(protocol, address, probename, probes string, matches []m
 matchResponse
 @Description:  响应匹配
 @param matches
-@param resultEveryGoRunTine
 @param bannerPrint
 @param probes
 @return *model.BannerResult

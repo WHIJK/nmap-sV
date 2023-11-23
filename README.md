@@ -27,7 +27,7 @@ Options:
         timeout for port (default 5)
 
 ```
-优化：利用goruntine加快了探针发送与匹配速度  
+优化：利用goroutine加快了探针发送与匹配速度  
 ![img.png](img/img33.png)  
 从管道符获取输入，如naabu   
 ![img.png](img/img.png)  
