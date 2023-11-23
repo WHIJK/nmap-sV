@@ -31,7 +31,7 @@ const (
 )
 
 type NmapSdk struct {
-	BannerResult *model.BannerResult
+	BannerResult model.BannerResult
 	IsMatch      string // 匹配状态,open==开放并且匹配成功，not matched==开放但是未匹配成功
 	Protocol     string // tcp | udp
 	Timeout      int
@@ -49,8 +49,22 @@ NmapSv
 @receiver sv
 @param address
 @param jobSingle  每个goruntine需要处理多少任务，越大，则goruntine越少
+@param scanType 扫描类型
 */
-func (sv *NmapSdk) NmapSv(address string, jobSingle int) {
+func (sv *NmapSdk) NmapSv(address string, jobSingle int, scanType string) {
+	switch scanType {
+	case "tcp":
+		sv.Protocol = "tcp"
+	case "udp":
+		sv.Protocol = "udp"
+	default:
+		if isTCPPortOpen(address, sv.Timeout) {
+			sv.Protocol = "tcp"
+		} else {
+			sv.Protocol = "udp"
+		}
+	}
+
 	if !stringsutil.ContainsAny(address, ":") {
 		return
 	}
@@ -58,7 +72,7 @@ func (sv *NmapSdk) NmapSv(address string, jobSingle int) {
 		sv.Timeout = 5
 	}
 	if sv.IsMatch = DnsScan(address, sv.Timeout); sv.IsMatch == Open {
-		sv.BannerResult = &model.BannerResult{
+		sv.BannerResult = model.BannerResult{
 			Address: address,
 			Service: "DNS",
 			Banner: model.Banner{
@@ -80,10 +94,11 @@ func (sv *NmapSdk) NmapSv(address string, jobSingle int) {
 	sv.AddPattern(&nmapStructs, "TerminalServerCookie", "^\\x03\\x00\\x00\\x13\\x0e\\xd0\\x00\\x00\\x124\\x00\\x02.*\\x02\\x00\\x00\\x00",
 		"ms-wbt-server", "", "o:microsoft:windows", "", "", "", "Windows", "Microsoft Terminal Services",
 		"Windows 7 or Server 2008 R2")
+
 	worker := int(math.Ceil(float64(len(nmapStructs)) / float64(jobSingle)))
 	var wg sync.WaitGroup
 	var ctx, cancel = context.WithCancel(context.Background())
-	resultChan := make(chan string, 2048)
+	resultChan := make(chan NmapSdk, 2048)
 	for i := 0; i < worker; i++ {
 		wg.Add(1)
 		if (i+1)*jobSingle <= len(nmapStructs) {
@@ -97,22 +112,43 @@ func (sv *NmapSdk) NmapSv(address string, jobSingle int) {
 		close(resultChan) // 关闭通道，表示所有goroutine都已经完成
 	}()
 	// 通过select循环监听通道，取得最先发送的结果
-	for {
-		select {
-		case index, ok := <-resultChan:
-			if ok {
-				cancel()
-				switch index {
-				case Closed:
-					gologger.Error().Msg(address + " Timeout")
-				case NotMatched:
-					if sv.Protocol == "udp" { // 如果Udp未匹配到，则直接变成closed状态【udp只匹配优先端口】
-						sv.IsMatch = Closed
-					}
-				}
-				return
+	var tempResponseBody string
+	for result := range resultChan {
+		switch result.IsMatch {
+		case Closed:
+			cancel()
+			gologger.Error().Msg(address + " Timeout")
+			sv.BannerResult = result.BannerResult
+			sv.IsMatch = result.IsMatch
+			return
+		case Open:
+			cancel()
+			sv.BannerResult = result.BannerResult
+			sv.IsMatch = result.IsMatch
+			if sv.Protocol == "udp" {
+				gologger.Info().Msgf("address %s %s is udp", address, sv.BannerResult.Service)
+			}
+			return
+		default:
+			if result.BannerResult.Banner.BannerPrint != "" { // 响应内容不为空
+				tempResponseBody = result.BannerResult.Banner.BannerPrint
 			}
 		}
+	}
+	sv.BannerResult = model.BannerResult{
+		Address: address,
+		Service: "Unknown",
+		Banner: model.Banner{
+			Operatingsystem:   "",
+			Vendorproductname: "",
+			Version:           "",
+			BannerPrint:       tempResponseBody,
+		},
+	}
+	sv.IsMatch = NotMatched
+	if sv.Protocol == "udp" && sv.BannerResult.Banner.BannerPrint == "" { // 如果Udp没有response，则直接变成closed状态【udp只匹配优先端口】
+		sv.IsMatch = Closed
+		gologger.Error().Msg(address + " closed or udp response is nil ")
 	}
 
 }
@@ -127,22 +163,16 @@ HandleEveryGoRunTine
 @param ctx
 @param resultChan
 */
-func (sv *NmapSdk) HandleEveryGoRunTine(iNmapStructs []model.NmapStruct, address string, wg *sync.WaitGroup, ctx context.Context, resultChan chan string) {
+func (sv *NmapSdk) HandleEveryGoRunTine(iNmapStructs []model.NmapStruct, address string, wg *sync.WaitGroup, ctx context.Context, resultChan chan NmapSdk) {
 	defer wg.Done()
 	var tempNmapStructs []model.NmapStruct
+	// banner结果存储
 	port := stringsutil.SplitAny(address, ":")[1]
 	twice := 0
 AppendScan:
 	if twice < 2 {
 		twice++
 		for _, nmapStruct := range iNmapStructs {
-			//等待时间
-			if nmapStruct.Totalwaitms != "" {
-				timeoutTemp, err := strconv.Atoi(nmapStruct.Totalwaitms)
-				if err == nil {
-					sv.Timeout = timeoutTemp / 1000
-				}
-			}
 			select {
 			case <-ctx.Done():
 				return // 如果接收到停止信号，立即返回
@@ -150,9 +180,16 @@ AppendScan:
 				if strings.ToLower(nmapStruct.Protocol) == sv.Protocol || sv.Protocol == "" {
 					//  优先端口探测
 					if sliceutil.Contains(util.PortHandle(nmapStruct.Ports), port) || twice >= 2 {
-						if sv.BannerResult, sv.IsMatch = sv.send(strings.ToLower(nmapStruct.Protocol), address, nmapStruct.Probename, nmapStruct.Probestring, append(nmapStruct.Matches, nmapStruct.Softmatches...)); sv.IsMatch == Open || sv.IsMatch == Closed {
-							resultChan <- sv.IsMatch
+						//等待时间
+						if nmapStruct.Totalwaitms != "" {
+							timeoutTemp, err := strconv.Atoi(nmapStruct.Totalwaitms)
+							if err == nil {
+								sv.Timeout = timeoutTemp / 1000
+							}
+						}
+						if result := sv.send(strings.ToLower(nmapStruct.Protocol), address, nmapStruct.Probename, nmapStruct.Probestring, append(nmapStruct.Matches, nmapStruct.Softmatches...)); result.IsMatch == Open || result.IsMatch == Closed {
 							ctx.Done()
+							resultChan <- result
 							return
 						}
 					} else { // 未探测的则放置第二次
@@ -162,13 +199,10 @@ AppendScan:
 			}
 		}
 	}
-	if twice < 2 {
+	if twice < 2 && sv.Protocol != "udp" { // 如果不为udp，则进行剩余指纹扫描,  udp只扫描常用端口列表内的
 		iNmapStructs = tempNmapStructs
 		goto AppendScan
 	}
-	resultChan <- NotMatched
-	ctx.Done()
-	return
 }
 
 /*
@@ -180,72 +214,67 @@ send
 @return *model.BannerResult
 @return string
 */
-func (sv *NmapSdk) send(protocol, address, probename, probes string, matches []model.Matches) (*model.BannerResult, string) {
-	var buf = make([]byte, 2048)
-	var bannerPrint string // 记录端口的banner信息
-	var bannerResult = &model.BannerResult{
-		Address: address,
-		Service: "Unknown",
-		Banner: model.Banner{
-			Operatingsystem:   "",
-			Vendorproductname: "",
-			Version:           "",
-			BannerPrint:       "",
+func (sv *NmapSdk) send(protocol, address, probename, probes string, matches []model.Matches) NmapSdk {
+	var tempBannerResult = NmapSdk{
+		IsMatch: NotMatched,
+		BannerResult: model.BannerResult{
+			Address: address,
+			Service: "Unknown",
+			Banner: model.Banner{
+				Operatingsystem:   "",
+				Vendorproductname: "",
+				Version:           "",
+				BannerPrint:       "",
+			},
 		},
-	} // banner结果存储
-	conn, err := net.DialTimeout(protocol, address, time.Second*time.Duration(sv.Timeout))
-	if err == nil {
-		if protocol != "udp" {
-			sv.Protocol = protocol // 获如果不是发送的udp，未报错，也能判断协议正确
-		}
-		conn.SetDeadline(time.Now().Add(time.Second * time.Duration(sv.Timeout)))
-		defer conn.Close()
-		if probes != "" {
-			probes = strings.ReplaceAll(probes, "\\r\\n", "\r\n")
-			io.WriteString(conn, fmt.Sprintf("%s", util.HexToString(probes)))
-		}
-		length, err_read := conn.Read(buf)
-		if err_read == nil && length > 0 {
-			sv.Protocol = protocol             // 获取到响应结果，则协议判断正确
-			bannerPrint = string(buf[:length]) // 获得指纹信息
-			return matchResponse(matches, bannerResult, bannerPrint, probes)
-		} else if length == 0 && stringsutil.ContainsAnyI(probename, "GetRequest", "HTTPOptions") { // 当是这两个探针时，发送后没有数据，则会发送HTTP请求进行探测匹配
-			url := "http://" + address
-			if hosts := stringsutil.SplitAny(address, ":"); hosts[1] == "80" {
-				url = "http://" + hosts[0]
-			}
-			status, resp := util.GetHttpBanner(url, sv.Timeout)
-			if status {
-				return matchResponse(matches, bannerResult, resp, probes)
-			}
-		}
-		//tcp端口发送了udp数据，会直接超时，判断一下是否为tcp端口
-	} else if sv.Protocol == "" && protocol == "udp" && isTCPPortOpen(address, sv.Timeout) {
-		sv.Protocol = "tcp"
-		return bannerResult, NotMatched
-	} else if sv.Protocol == "" && protocol == "tcp" && stringsutil.ContainsAny(err.Error(), "refused") { // udp端口发送了tcp数据可能报错，connectex: No connection could be made because the target machine actively refused it.
-		sv.Protocol = "udp"
-		return bannerResult, NotMatched
-	} else if sv.Protocol == "tcp" { // 如果tcp协议报错，直接判断端口关闭
-		return bannerResult, Closed
+		Protocol: "",
 	}
-	return bannerResult, NotMatched
+	//如果一个goruntine判断出了协议，这里就会跳过其他协议探针的发送
+	if sv.Protocol == "" || sv.Protocol == protocol {
+		var buf = make([]byte, 2048)
+		conn, err := net.DialTimeout(protocol, address, time.Second*time.Duration(sv.Timeout))
+		if err == nil {
+			conn.SetDeadline(time.Now().Add(time.Second * time.Duration(sv.Timeout)))
+			defer conn.Close()
+			if probes != "" {
+				probes = strings.ReplaceAll(probes, "\\r\\n", "\r\n")
+				io.WriteString(conn, fmt.Sprintf("%s", util.HexToString(probes)))
+			}
+			length, err_read := conn.Read(buf)
+			if err_read == nil && length > 0 {
+				return matchResponse(matches, tempBannerResult, string(buf[:length]), probes)
+			} else if length == 0 && stringsutil.ContainsAnyI(probename, "GetRequest", "HTTPOptions") { // 当是这两个探针时，发送后没有数据，则会发送HTTP请求进行探测匹配
+				url := "http://" + address
+				if hosts := stringsutil.SplitAny(address, ":"); hosts[1] == "80" {
+					url = "http://" + hosts[0]
+				}
+				status, resp := util.GetHttpBanner(url, sv.Timeout)
+				if status {
+					return matchResponse(matches, tempBannerResult, resp, probes)
+				}
+			}
+		} else if sv.Protocol != "udp" {
+			tempBannerResult.IsMatch = Closed
+			return tempBannerResult
+		}
+	}
+	return tempBannerResult
 }
 
 /*
 matchResponse
 @Description:  响应匹配
 @param matches
-@param bannerResult
+@param resultEveryGoRunTine
 @param bannerPrint
 @param probes
 @return *model.BannerResult
 @return string
 */
-func matchResponse(matches []model.Matches, bannerResult *model.BannerResult, bannerPrint, probes string) (*model.BannerResult, string) {
+func matchResponse(matches []model.Matches, tempNmapSdk NmapSdk, bannerPrint, probes string) NmapSdk {
 	var matchFlag bool // 是否成功匹配指纹标志位
 	var matchArr []string
-	bannerResult.Banner.BannerPrint = strings.Trim(fmt.Sprintf("%#v", bannerPrint), `"`)
+	tempNmapSdk.BannerResult.Banner.BannerPrint = strings.Trim(fmt.Sprintf("%#v", bannerPrint), `"`)
 	for _, match := range matches {
 		matchArr, matchFlag = MatchFingerprint(util.ConvResponse(bannerPrint), match.Pattern, match.PatternFlag)
 		if matchFlag { // 匹配到json文件中的正则
@@ -266,16 +295,17 @@ func matchResponse(matches []model.Matches, bannerResult *model.BannerResult, ba
 			default:
 				service = match.Name
 			}
-			bannerResult.Service = service
-			bannerResult.ProbeString = probes
-			bannerResult.Pattern = fmt.Sprintf("%v", match.Pattern)
-			bannerResult.Banner.Operatingsystem = MatchGroup(match.Versioninfo.Operatingsystem, matchArr)
-			bannerResult.Banner.Vendorproductname = MatchGroup(match.Versioninfo.Vendorproductname, matchArr)
-			bannerResult.Banner.Version = MatchGroup(match.Versioninfo.Version, matchArr)
-			return bannerResult, Open
+			tempNmapSdk.BannerResult.Service = service
+			tempNmapSdk.BannerResult.ProbeString = probes
+			tempNmapSdk.BannerResult.Pattern = fmt.Sprintf("%v", match.Pattern)
+			tempNmapSdk.BannerResult.Banner.Operatingsystem = MatchGroup(match.Versioninfo.Operatingsystem, matchArr)
+			tempNmapSdk.BannerResult.Banner.Vendorproductname = MatchGroup(match.Versioninfo.Vendorproductname, matchArr)
+			tempNmapSdk.BannerResult.Banner.Version = MatchGroup(match.Versioninfo.Version, matchArr)
+			tempNmapSdk.IsMatch = Open
+			return tempNmapSdk
 		}
 	}
-	return bannerResult, NotMatched
+	return tempNmapSdk
 }
 
 /*

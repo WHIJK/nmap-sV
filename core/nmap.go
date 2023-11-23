@@ -13,7 +13,7 @@ import (
 func Run(address string, bannerChannel chan string, matchJob int) {
 	var sdk = NmapSdk{}
 	sdk.Timeout = *option.Timeout
-	sdk.NmapSv(address, matchJob)
+	sdk.NmapSv(address, matchJob, *option.Model)
 	// 添加规则示例
 	//sdk.AddPattern(&sdk.NmapStructs, "TerminalServerCookie", "^\\x03\\x00\\x00\\x13\\x0e\\xd0\\x00\\x00\\x124\\x00\\x02.*\\x02\\x00\\x00\\x00",
 	//	"ms-wbt-server", "", "o:microsoft:windows", "", "", "", "Windows", "Microsoft Terminal Services",

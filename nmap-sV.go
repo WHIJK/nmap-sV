@@ -54,6 +54,10 @@ func printBanner(done chan bool) {
 		if *option.Banner {
 			print_info = util.BufferJoin([]string{print_info, " ", bannerStruct.Banner.BannerPrint})
 		}
+
+		if *option.Pattern {
+			print_info = util.BufferJoin([]string{print_info, " ", bannerStruct.Pattern})
+		}
 		fmt.Println(print_info)
 	}
 	done <- true

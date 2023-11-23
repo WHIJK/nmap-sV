@@ -9,7 +9,8 @@
 >- new.json为新增加的探针与对应的规则
 >- 已有探针上添加匹配规则，使用AddPattern函数
 >- 支持域名，未添加端口则默认为80
->- UDP只会探测处于优先端口列表中的端口，如果未匹配到则会更改为关闭状态
+>- UDP只会探测处于优先端口列表中的端口，如果未匹配并且Body为空则会更改为关闭状态
+>- 待完善：ud端口的判断
 ```
 No input detected. Hint: cat ip:port.txt | file
 Usage of nmap-sV:
