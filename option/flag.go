@@ -1,17 +1,36 @@
 package option
 
-import "flag"
+import (
+	"flag"
+)
 
 /*
 @Author: OvO
 @Date: 2023/11/1 18:02
 */
 
-var Threads = flag.Int("t", 50, "Threads")
-var TaskNumber = flag.Int("n", 30, "the number of tasks each goroutine will handle when send and match") //会根据指定的任务数量分配goroutine的数量
-var File = flag.String("o", "", "Output to  json")
-var Pattern = flag.Bool("p", false, "show pattern")
-var Banner = flag.Bool("b", false, "Show port banner")
-var Model = flag.String("m", "all", "only tcp or only udp, tcp、udp、all")
-var Info = flag.Bool("i", false, "Show all info")
-var Timeout = flag.Int("time", 5, "timeout for port")
+var (
+	Threads    int
+	TaskNumber int
+	File       string
+	Pattern    bool
+	Banner     bool
+	Model      string
+	Info       bool
+	Timeout    int
+	Host       string
+	Script     bool // 默认值为启用
+)
+
+func init() {
+	flag.IntVar(&Threads, "t", 50, "Threads")
+	flag.IntVar(&TaskNumber, "n", 30, "the number of tasks each goroutine will handle when send and match")
+	flag.StringVar(&File, "o", "", "Output to json")
+	flag.BoolVar(&Pattern, "p", false, "show pattern")
+	flag.BoolVar(&Banner, "b", false, "Show port banner")
+	flag.StringVar(&Model, "m", "all", "only tcp or only udp, tcp、udp、all")
+	flag.BoolVar(&Info, "i", false, "Show all info")
+	flag.IntVar(&Timeout, "time", 5, "timeout for port")
+	flag.StringVar(&Host, "e", "", "Enter a target")
+	flag.BoolVar(&Script, "s", false, "Disabled script")
+}

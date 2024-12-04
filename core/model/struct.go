@@ -55,4 +55,5 @@ type Banner struct {
 	Vendorproductname string `json:"vendorproductname"`
 	Version           string `json:"version"`
 	BannerPrint       string `json:"bannerPrint"`
+	Extra             string `json:"extra"`
 }

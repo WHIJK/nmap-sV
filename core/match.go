@@ -1,11 +1,12 @@
 package core
 
 import (
-	"github.com/dlclark/regexp2"
-	"github.com/projectdiscovery/gologger"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/dlclark/regexp2"
+	"github.com/projectdiscovery/gologger"
 )
 
 /*
@@ -36,7 +37,7 @@ func MatchFingerprint(banner, reg, flag string) ([]string, bool) {
 	default:
 		re = regexp2.MustCompile(reg, regexp2.Multiline|regexp2.IgnoreCase)
 	}
-	// golang 原生不支持Perl正则的全部
+
 	if ok, err := re.MatchString(banner); ok && err == nil {
 		if match, match_err := re.FindStringMatch((banner)); match_err == nil {
 			var matchGroup = []string{}

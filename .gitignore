@@ -2,3 +2,4 @@
 a.txt
 nmapparse/nmapdata.py
 *.exe
+.vscode/

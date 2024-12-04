@@ -4,14 +4,15 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/hex"
-	"github.com/WHIJK/nmap-sV/option"
-	iputil "github.com/projectdiscovery/utils/ip"
-	stringsutil "github.com/projectdiscovery/utils/strings"
 	"os"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/WHIJK/nmap-sV/option"
+	iputil "github.com/projectdiscovery/utils/ip"
+	stringsutil "github.com/projectdiscovery/utils/strings"
 )
 
 /*
@@ -70,7 +71,7 @@ func BufferJoin(s1 []string) string {
 
 // output
 func W2json(one string) {
-	file, err := os.OpenFile(*option.File, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0755)
+	file, err := os.OpenFile(option.File, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0755)
 	if err != nil {
 		panic(err)
 	}

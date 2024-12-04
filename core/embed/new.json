@@ -75,5 +75,36 @@
       }
     ],
     "softmatches": []
+  },
+  {
+    "protocol": "TCP",
+    "probename": "JDWP",
+    "probestring": "JDWP-Handshake",
+    "ports": [
+      "8000"
+    ],
+    "sslports": [],
+    "totalwaitms": "",
+    "tcpwrappedms": "",
+    "rarity": "4",
+    "fallback": "",
+    "matches": [
+      {
+        "pattern": "^JDWP-Handshake$",
+        "name": "jdwp",
+        "pattern_flag": "",
+        "versioninfo": {
+            "cpename": "",
+            "devicetype": "",
+            "hostname": "",
+            "info": "",
+            "operatingsystem": "",
+            "vendorproductname": "Java Debug Wire Protocol",
+            "version": ""
+        }
+    }
+    ],
+    "softmatches": []
   }
+  
 ]
