@@ -32,5 +32,5 @@ func init() {
 	flag.BoolVar(&Info, "i", false, "Show all info")
 	flag.IntVar(&Timeout, "time", 5, "timeout for port")
 	flag.StringVar(&Host, "e", "", "Enter a target")
-	flag.BoolVar(&Script, "s", false, "Disabled script")
+	flag.BoolVar(&Script, "d", false, "Disabled script")
 }
