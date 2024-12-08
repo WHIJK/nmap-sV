@@ -16,6 +16,7 @@ import (
 	"github.com/WHIJK/nmap-sV/core/model"
 	"github.com/WHIJK/nmap-sV/core/util"
 	"github.com/WHIJK/nmap-sV/option"
+	"github.com/projectdiscovery/gologger"
 )
 
 const version = "1.6.1"
@@ -27,18 +28,29 @@ var portList = make([]string, 0) // 端口符合，优先发送
 var bannerStruct model.BannerResult
 
 // 任务创建
-func createJobs(s bufio.Scanner) {
+func createJobs(s *bufio.Scanner) {
+	var batch []string
+	taskCount := 0 // 用于统计任务数量
 	for s.Scan() {
-		if strings.TrimSpace(s.Text()) == "" {
-			continue
-		}
-		if job, ok := util.MatchInput(fmt.Sprintf("%s", strings.ReplaceAll(s.Text(), " ", ""))); ok {
-			jobsChannel <- job
-		} else {
-			fmt.Println(job + " input error")
+		line := strings.TrimSpace(s.Text())
+		if line != "" {
+			batch = append(batch, line)
+			if len(batch) >= 100 { // 每 100 条任务批量发送
+				for _, job := range batch {
+					jobsChannel <- job
+					taskCount++ // 每发送一个任务，计数器加 1
+				}
+				batch = nil
+			}
 		}
 	}
+	// 处理剩余未发送的任务
+	for _, job := range batch {
+		jobsChannel <- job
+		taskCount++ // 计数器加 1
+	}
 	close(jobsChannel)
+	gologger.Info().Msgf("Total tasks created: %d\n", taskCount) // 打印任务总数
 }
 
 // 输出
@@ -89,10 +101,10 @@ func createPool(threads int) {
 
 // 执行任务
 func worker(wg *sync.WaitGroup) {
+	defer wg.Done()
 	for v := range jobsChannel {
 		core.Run(v, bannerChannel, option.TaskNumber, !option.Script)
 	}
-	wg.Done()
 }
 
 func init() {
@@ -106,20 +118,23 @@ func init() {
 }
 
 func main() {
-	startTime := time.Now()
+
 	stat, _ := os.Stdin.Stat()
 	if (stat.Mode()&os.ModeCharDevice) != 0 && option.Host == "" {
 		fmt.Fprintln(os.Stderr, "No input detected. Hint: cat ip:port.txt | nmap-sV")
 		os.Exit(1)
 	}
 	var inputReader io.Reader
-	if option.Host != "" {
+	if option.Host != "" && (stat.Mode()&os.ModeCharDevice) != 0 {
 		inputReader = io.MultiReader(strings.NewReader(option.Host+"\n"), os.Stdin)
+	} else if option.Host != "" {
+		inputReader = io.MultiReader(strings.NewReader(option.Host + "\n"))
 	} else {
 		inputReader = os.Stdin
 	}
 	s := bufio.NewScanner(inputReader)
-	go createJobs(*s)
+	startTime := time.Now()
+	go createJobs(s)
 	done := make(chan bool)
 	go printBanner(done)
 	createPool(option.Threads)

@@ -50,7 +50,7 @@ func GetHttpBanner(url string, timeout int) (status bool, html string) {
 	defer resp.Body.Close()
 
 	// Dump the response including headers and body
-	dump, _ := httputil.DumpResponse(resp, true)
+	dump, _ := httputil.DumpResponse(resp, false)
 	if err != nil {
 		return false, ""
 	}
