@@ -46,20 +46,28 @@ func init() {
 	nmapStructs = embed.Load()
 }
 
-// 定义一个接口类型，用来描述所有脚本函数
-
-// setProtocol 设置协议类型
 func (sv *NmapSdk) setProtocol(address, scanType string) {
 	switch scanType {
 	case "tcp":
-		sv.Protocol = "tcp"
+		sv.Protocol = "tcp" // 强制设置为 TCP
 	case "udp":
-		sv.Protocol = "udp"
+		sv.Protocol = "udp" // 强制设置为 UDP
 	default:
+		// 提取端口号进行匹配
+		parts := strings.Split(address, ":")
+		if len(parts) == 2 {
+			port := parts[1]
+			if _, exists := TcpOnlyPorts[port]; exists {
+				sv.Protocol = "tcp" // 如果是仅 TCP 的端口，则设置为 TCP
+				return
+			}
+		}
+
+		// 如果端口号未匹配，仅尝试检测 TCP
 		if isTCPPortOpen(address, sv.Timeout) {
 			sv.Protocol = "tcp"
 		} else {
-			sv.Protocol = "udp"
+			sv.Protocol = "udp" // 未匹配上且 TCP 检测失败，则设置为 UDP
 		}
 	}
 }
@@ -73,13 +81,14 @@ NmapSv
 @param scanType 扫描类型
 */
 func (sv *NmapSdk) NmapSv(address string, jobSingle int, scanType string, enableScript bool) {
-	// 设置协议
-	sv.setProtocol(address, scanType)
-
 	if !strings.Contains(address, ":") {
 		gologger.Error().Msgf("Invalid host format: %s. The address should include a port, e.g. 'host:port'.", address)
 		return
 	}
+
+	// 设置协议
+	sv.setProtocol(address, scanType)
+
 	if sv.Timeout == 0 {
 		sv.Timeout = 5
 	}
@@ -112,12 +121,18 @@ func (sv *NmapSdk) NmapSv(address string, jobSingle int, scanType string, enable
 	if worker > len(nmapStructs) {
 		worker = len(nmapStructs)
 	}
+
+	// 增加全局超时逻辑,单个端口60s未匹配，则超时
+	globalCtx, globalCancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer globalCancel() // 确保超时器被释放
+
 	var wg sync.WaitGroup
 	var ctx, cancel = context.WithCancel(context.Background())
 	resultChan := make(chan NmapSdk, 2048)
 
 	// 启动多个 Goroutines 处理任务
 	wg.Add(worker)
+
 	for i := 0; i < worker; i++ {
 		if (i+1)*jobSingle <= len(nmapStructs) {
 			go sv.HandleEveryGoRouTine(nmapStructs[i*jobSingle:(i+1)*jobSingle], address, &wg, ctx, resultChan) // 启动多个goroutine，每个处理切片的一部分
@@ -160,7 +175,7 @@ func (sv *NmapSdk) NmapSv(address string, jobSingle int, scanType string, enable
 			switch result.IsMatch {
 			case Closed:
 				cancel()
-				gologger.Error().Msg(address + " Timeout")
+				gologger.Error().Msg(address + " timeout.")
 				sv.BannerResult = result.BannerResult
 				sv.IsMatch = result.IsMatch
 				return
@@ -209,6 +224,20 @@ func (sv *NmapSdk) NmapSv(address string, jobSingle int, scanType string, enable
 			}
 		case <-ctx.Done():
 			return
+		case <-globalCtx.Done(): // 全局超时
+			gologger.Error().Msgf("Global timeout reached for address: %s", address)
+			sv.BannerResult = model.BannerResult{
+				Address: address,
+				Service: "Unknown",
+				Banner: model.Banner{
+					Operatingsystem:   "",
+					Vendorproductname: "",
+					Version:           "",
+					BannerPrint:       "",
+				},
+			}
+			sv.IsMatch = Closed
+			return
 		}
 	}
 }
@@ -226,10 +255,9 @@ HandleEveryGoRouTine
 func (sv *NmapSdk) HandleEveryGoRouTine(iNmapStructs []model.NmapStruct, address string, wg *sync.WaitGroup, ctx context.Context, resultChan chan NmapSdk) {
 	defer wg.Done()
 	var tempNmapStructs []model.NmapStruct
-	// banner结果存储
 	port := stringsutil.SplitAny(address, ":")[1]
 	twice := 0
-	for {
+	for twice < 2 {
 		// 处理一次扫描，直到没有剩余端口需要处理
 		for _, nmapStruct := range iNmapStructs {
 			select {
@@ -257,7 +285,7 @@ func (sv *NmapSdk) HandleEveryGoRouTine(iNmapStructs []model.NmapStruct, address
 						} else if result.IsMatch == SoftMatch {
 							resultChan <- result
 						}
-					} else {
+					} else if twice == 0 {
 						// 如果是非优先端口，保存未处理的nmapStruct
 						tempNmapStructs = append(tempNmapStructs, nmapStruct)
 					}
@@ -288,66 +316,55 @@ send
 @return *model.BannerResult
 @return string
 */
-func (sv *NmapSdk) send(protocol, address, probename, probes string, matches, softMatches []model.Matches) NmapSdk {
-	// 初始化默认返回结果
-	result := NmapSdk{
+func (sv *NmapSdk) send(protocol, address, probename, probes string, matches []model.Matches, softMatches []model.Matches) NmapSdk {
+	var tempBannerResult = NmapSdk{
 		IsMatch: NotMatched,
 		BannerResult: model.BannerResult{
 			Address: address,
 			Service: "Unknown",
-			Banner:  model.Banner{},
+			Banner: model.Banner{
+				Operatingsystem:   "",
+				Vendorproductname: "",
+				Version:           "",
+				BannerPrint:       "",
+			},
 		},
 		Protocol: sv.Protocol,
 	}
-
-	// 协议过滤
+	// 如果一个goroutine判断出了协议，这里就会跳过其他协议探针的发送
 	if sv.Protocol != "" && sv.Protocol != protocol {
-		return result
+		return tempBannerResult
 	}
+
 	if stringsutil.ContainsAnyI(probename, "GetRequest") { // http发包代替
-		return handleHTTPProbe(address, matches, softMatches, result, probes)
+		return handleHTTPProbe(address, matches, softMatches, tempBannerResult, probes)
 	} else {
-		// 初始化缓冲区池
-		var bufferPool = sync.Pool{
-			New: func() interface{} {
-				return make([]byte, 4096)
-			},
-		}
-
-		// 建立网络连接
+		var buf = make([]byte, 4096)
 		conn, err := net.DialTimeout(protocol, address, time.Second*time.Duration(sv.Timeout))
-		if err != nil {
-			// 非UDP协议返回Closed状态
-			if sv.Protocol != "udp" {
-				result.IsMatch = Closed
+
+		if err == nil {
+			// 设置读写超时
+			conn.SetDeadline(time.Now().Add(time.Second * time.Duration(2*sv.Timeout)))
+			defer conn.Close()
+			if probes != "" {
+				probes = strings.ReplaceAll(probes, "\\r\\n", "\r\n")
+				io.WriteString(conn, fmt.Sprintf("%s", util.HexToString(probes)))
 			}
-			return result
-		}
-		defer conn.Close()
-		_ = conn.SetDeadline(time.Now().Add(time.Second * time.Duration(sv.Timeout)))
-
-		// 发送探针数据
-		if probes != "" {
-			probes = strings.ReplaceAll(probes, "\\r\\n", "\r\n")
-			_, _ = io.WriteString(conn, util.HexToString(probes))
-		}
-
-		// 读取响应数据
-		buf := bufferPool.Get().([]byte)
-		defer bufferPool.Put(buf)
-		length, err := conn.Read(buf)
-		if err == nil && length > 0 {
-			response := string(buf[:length])
-			return matchResponseWithFallback(matches, softMatches, result, response, probes)
+			length, err_read := conn.Read(buf)
+			if err_read == nil && length > 0 {
+				tempSDK := matchResponse(matches, tempBannerResult, string(buf[:length]), probes, false)
+				if tempSDK.IsMatch == Open {
+					return tempSDK
+				} else {
+					return matchResponse(softMatches, tempSDK, string(buf[:length]), probes, true)
+				}
+			}
+		} else if sv.Protocol != "udp" {
+			tempBannerResult.IsMatch = Closed
+			return tempBannerResult
 		}
 	}
-
-	// 特殊探针处理（HTTP）
-	// if length == 0 && stringsutil.ContainsAnyI(probename, "GetRequest", "HTTPOptions") {
-	// 	return handleHTTPProbe(address, matches, softMatches, result, probes)
-	// }
-
-	return result
+	return tempBannerResult
 }
 
 // handleHTTPProbe 处理 HTTP 探针逻辑
